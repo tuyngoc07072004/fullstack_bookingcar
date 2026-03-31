@@ -25,7 +25,7 @@ const staffBookingRoutes = require('./src/router/staffBooking.router');
 const staffCustomerRoutes = require('./src/router/StaffCustomer.router');
 const tripRoutes = require('./src/router/Trip.router');
 const driverTripRoutes = require('./src/router/driverTrip.router');
-const paymentRoutes= require('./src/router/Payment.router')
+const paymentRoutes = require('./src/router/Payment.router')
 const driverReviewRoutes = require('./src/router/driverReview.router');
 const connectDB = async () => {
   try {
@@ -88,30 +88,30 @@ app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/staff/bookings', staffBookingRoutes);
 app.use('/api/staffListCustomers', staffCustomerRoutes);
-app.use('/api/trips', tripRoutes); 
+app.use('/api/trips', tripRoutes);
 app.use('/api/driverTrip', driverTripRoutes);
-app.use('/api/payments',paymentRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/reviews', driverReviewRoutes);
 app.use((req, res) => {
   console.log(`⚠️ 404: ${req.method} ${req.url}`);
-  res.status(404).json({ 
+  res.status(404).json({
     success: false,
-    message: 'Không tìm thấy tài nguyên' 
+    message: 'Không tìm thấy tài nguyên'
   });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
   console.error('❌ Lỗi server:', err.stack);
-  
+
   if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ 
+    return res.status(403).json({
       success: false,
-      message: 'Truy cập bị từ chối bởi CORS' 
+      message: 'Truy cập bị từ chối bởi CORS'
     });
   }
 
-  res.status(500).json({ 
+  res.status(500).json({
     success: false,
     message: 'Đã xảy ra lỗi server',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined

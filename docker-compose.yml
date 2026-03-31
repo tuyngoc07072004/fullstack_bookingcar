@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Backend - Node.js Express API
+  # ============================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: car-booking-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=5000
+    env_file:
+      - .env
+    networks:
+      - car-booking-network
+
+  # ============================================
+  # Custom Frontend
+  # ============================================
+  custom:
+    build:
+      context: .
+      dockerfile: custom/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+    container_name: car-booking-custom
+    restart: unless-stopped
+    ports:
+      - "${CUSTOM_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - car-booking-network
+
+  # ============================================
+  # Driver Frontend
+  # ============================================
+  driver:
+    build:
+      context: .
+      dockerfile: driver/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+    container_name: car-booking-driver
+    restart: unless-stopped
+    ports:
+      - "${DRIVER_PORT:-3001}:80"
+    depends_on:
+      - backend
+    networks:
+      - car-booking-network
+
+  # ============================================
+  # Staff Frontend
+  # ============================================
+  staff:
+    build:
+      context: .
+      dockerfile: staff/Dockerfile
+      args:
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:5000/api}
+    container_name: car-booking-staff
+    restart: unless-stopped
+    ports:
+      - "${STAFF_PORT:-3002}:80"
+    depends_on:
+      - backend
+    networks:
+      - car-booking-network
+
+networks:
+  car-booking-network:
+    driver: bridge

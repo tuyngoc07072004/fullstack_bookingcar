@@ -1,0 +1,68 @@
+services:
+  # ============================================
+  # Backend - Node.js Express (Docker)
+  # ============================================
+  - type: web
+    name: car-booking-backend
+    env: docker
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: DB_URL
+        # Bạn sẽ thay đổi URL MongoDB Atlas thực tế sau khi tạo Service
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        # Sau khi deploy xong Frontend, bạn hãy dán URL của Frontend vào đây
+        sync: false
+      - key: CLIENT_URL_SHIP
+        value: http://localhost:3001
+
+  # ============================================
+  # Custom Frontend (Docker)
+  # ============================================
+  - type: web
+    name: car-booking-custom
+    env: docker
+    dockerContext: .
+    dockerfilePath: custom/Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+
+  # ============================================
+  # Driver Frontend (Docker)
+  # ============================================
+  - type: web
+    name: car-booking-driver
+    env: docker
+    dockerContext: .
+    dockerfilePath: driver/Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+
+  # ============================================
+  # Staff Frontend (Docker)
+  # ============================================
+  - type: web
+    name: car-booking-staff
+    env: docker
+    dockerContext: .
+    dockerfilePath: staff/Dockerfile
+    plan: free
+    region: singapore
+    envVars:
+      - key: VITE_API_URL
+        sync: false

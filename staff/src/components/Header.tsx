@@ -7,19 +7,19 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Đóng menu khi chuyển route
   React.useEffect(() => {
     setIsMenuOpen(false);
   }, [location]);
 
   const menuItems = [
     { label: 'Trang Chủ', path: '/' },
+    { label: 'Đặt Xe', path: '/book-ride' },
     { label: 'Tra Cứu Chuyến Đi', path: '/my-trips' },
   ];
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
-      <div className="container mx-auto px-4 sm:px-6 bg-white">
+    <header className="bg-white shadow-sm sticky top-0 z-10000 border-b border-gray-100">
+      <div className="container mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group shrink-0">
@@ -31,7 +31,6 @@ export default function Header() {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             {menuItems.map((item) => (
               <Link
@@ -43,6 +42,12 @@ export default function Header() {
               </Link>
             ))}
             <div className="h-6 w-px bg-gray-200 mx-2"></div>
+            <Link
+              to="/staff-login"
+              className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors uppercase tracking-wider"
+            >
+              Quản lý
+            </Link>
             <a
               href="tel:19001234"
               className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-100 transition-colors"
@@ -62,6 +67,7 @@ export default function Header() {
           </button>
         </div>
 
+        {/* Mobile Navigation */}
         <div 
           className={`
             md:hidden overflow-hidden transition-all duration-300 ease-in-out
@@ -80,6 +86,12 @@ export default function Header() {
                 </Link>
               ))}
               <div className="border-t border-gray-100 my-2"></div>
+              <Link
+                to="/staff-login"
+                className="text-sm font-bold text-blue-600 hover:text-blue-700 transition-colors uppercase tracking-wider py-2"
+              >
+                Quản lý
+              </Link>
               <a
                 href="tel:19001234"
                 className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors"

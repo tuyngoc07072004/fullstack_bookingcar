@@ -18,6 +18,7 @@ class StaffBookingController {
     this.getAvailableDrivers = this.getAvailableDrivers.bind(this);
     this.getBookingDetailsForStaff = this.getBookingDetailsForStaff.bind(this);
     this.getAssignmentOptions = this.getAssignmentOptions.bind(this);
+    this.reassignDriverAndVehicle = this.reassignDriverAndVehicle.bind(this);
   }
   async getAllBookings(req, res) {
     try {
@@ -393,6 +394,18 @@ class StaffBookingController {
         );
       }
 
+      // Nếu staff set thời gian khởi hành, cập nhật luôn trip_date để UI/logic đồng bộ
+      let startTimeDate = null;
+      if (startTime) {
+        startTimeDate = new Date(startTime);
+        if (Number.isNaN(startTimeDate.getTime())) {
+          return res.status(400).json(
+            ApiResponse.error('Thời gian khởi hành không hợp lệ')
+          );
+        }
+        booking.trip_date = startTimeDate;
+      }
+
       // Kiểm tra booking đã được xác nhận chưa
       if (booking.status !== 'confirmed' && booking.status !== 'pending') {
         return res.status(400).json(
@@ -495,7 +508,7 @@ class StaffBookingController {
         driver_id: driverId,
         vehicle_id: vehicleId,
         staff_id: req.staffId,
-        start_time: startTime ? new Date(startTime) : null,
+        start_time: startTimeDate,
         driver_confirm: 0
       });
 
@@ -533,7 +546,7 @@ class StaffBookingController {
               time: null,
               booking_id: booking._id
             }],
-            departure_time: startTime ? new Date(startTime) : booking.trip_date,
+            departure_time: startTimeDate || booking.trip_date,
             max_passengers: booking.seats,
             total_passengers: booking.passengers,
             status: 'scheduled',
@@ -588,6 +601,49 @@ class StaffBookingController {
   }
 
   /**
+   * Re-assign tài xế/xe khi tài xế chưa nhận chuyến
+   * POST /api/staff/bookings/:id/reassign
+   */
+  async reassignDriverAndVehicle(req, res) {
+    try {
+      const { id } = req.params;
+      const { driverId, vehicleId, startTime, reason } = req.body;
+
+      if (!driverId || !vehicleId) {
+        return res.status(400).json(ApiResponse.error('Vui lòng chọn tài xế và xe'));
+      }
+
+      const booking = await Booking.findById(id);
+      if (!booking) {
+        return res.status(404).json(ApiResponse.error('Không tìm thấy đơn đặt xe'));
+      }
+
+      const existingAssignment = await TripAssignment.findOne({ booking_id: id });
+      if (!existingAssignment) {
+        return res.status(400).json(ApiResponse.error('Booking chưa được phân công, không thể đổi tài xế'));
+      }
+
+      // Chỉ cho phép đổi khi tài xế chưa nhận và chưa bắt đầu
+      if (existingAssignment.start_time || existingAssignment.driver_confirm === 1) {
+        return res.status(400).json(
+          ApiResponse.error('Không thể đổi tài xế khi chuyến đã được tài xế nhận hoặc đã bắt đầu')
+        );
+      }
+
+      await existingAssignment.removeAssignment();
+
+      // Sau removeAssignment(), booking sẽ quay về confirmed -> assign lại ngay
+      req.body = { driverId, vehicleId, startTime };
+      return await this.assignDriverAndVehicle(req, res);
+    } catch (error) {
+      console.error('❌ Lỗi reassign:', error);
+      return res.status(500).json(
+        ApiResponse.error('Không thể đổi tài xế/xe', error.message)
+      );
+    }
+  }
+
+  /**
    * Cập nhật trạng thái booking
    */
   async updateBookingStatus(req, res) {
@@ -595,7 +651,7 @@ class StaffBookingController {
       const { id } = req.params;
       const { status, reason } = req.body;
 
-      const validStatuses = ['pending', 'confirmed', 'assigned', 'in-progress', 'completed', 'cancelled'];
+      const validStatuses = ['pending', 'confirmed', 'assigned', 'in-progress', 'awaiting_payment', 'paid', 'completed', 'cancelled'];
       
       if (!validStatuses.includes(status)) {
         return res.status(400).json(
@@ -608,6 +664,24 @@ class StaffBookingController {
       if (!booking) {
         return res.status(404).json(
           ApiResponse.error('Không tìm thấy đơn đặt xe')
+        );
+      }
+
+      // Enforce new workflow:
+      // assigned (waiting driver accept) -> in-progress (moving) -> awaiting_payment -> paid -> completed
+      if (status === 'awaiting_payment' && booking.status !== 'in-progress') {
+        return res.status(400).json(
+          ApiResponse.error('Chỉ có thể chuyển sang "Chờ thanh toán" sau khi chuyến đang di chuyển')
+        );
+      }
+      if (status === 'paid' && booking.status !== 'awaiting_payment') {
+        return res.status(400).json(
+          ApiResponse.error('Chỉ có thể chuyển sang "Đã thanh toán" khi đang ở trạng thái "Chờ thanh toán"')
+        );
+      }
+      if (status === 'completed' && booking.status !== 'paid') {
+        return res.status(400).json(
+          ApiResponse.error('Chỉ có thể hoàn thành chuyến sau khi đã thanh toán')
         );
       }
 

@@ -15,12 +15,15 @@ router.use(authMiddleware);
 
 router.get('/me', requireDriver, driverController.getCurrentDriver);
 router.put('/profile', requireDriver, driverController.updateDriverProfile);
+router.post('/request-password-change', requireDriver, driverController.requestPasswordChangeDriver);
+router.post('/verify-otp', requireDriver, driverController.verifyDriverOtp);
 router.put('/change-password', requireDriver, driverController.changePassword);
 
 router.get('/status', requireDriver, driverTripController.getDriverStatus);
 router.get('/trips/:driverId', driverTripController.getDriverTrips);
 router.get('/stats/:driverId', driverTripController.getDriverStats);
 router.put('/confirm-trip', requireDriver, driverTripController.confirmTrip);
+router.put('/decline-trip', requireDriver, driverTripController.declineTrip);
 router.put('/complete-trip/:bookingId', requireDriver, driverTripController.completeTrip);
 
 module.exports = router;

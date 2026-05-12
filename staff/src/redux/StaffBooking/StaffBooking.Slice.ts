@@ -72,7 +72,16 @@ const createTripAssignment = (assignment: any): TripAssignment | undefined => {
 // Helper để ép kiểu status - FIXED: Use as const assertion
 const toBookingStatus = (status: string): BookingStatus => {
   // Validate that status is a valid BookingStatus
-  const validStatuses: BookingStatus[] = ['pending', 'confirmed', 'assigned', 'in-progress', 'completed', 'cancelled'];
+  const validStatuses: BookingStatus[] = [
+    'pending',
+    'confirmed',
+    'assigned',
+    'in-progress',
+    'awaiting_payment',
+    'paid',
+    'completed',
+    'cancelled'
+  ];
   if (validStatuses.includes(status as BookingStatus)) {
     return status as BookingStatus;
   }
@@ -181,6 +190,21 @@ export const assignDriverAndVehicle = createAsyncThunk(
       return rejectWithValue(response.message || 'Không thể phân công');
     } catch (error: any) {
       return rejectWithValue(error.message || 'Lỗi khi phân công');
+    }
+  }
+);
+
+export const reassignDriverAndVehicle = createAsyncThunk(
+  'staffBooking/reassignDriverAndVehicle',
+  async ({ bookingId, payload }: { bookingId: string; payload: AssignDriverPayload }, { rejectWithValue }) => {
+    try {
+      const response = await staffBookingApi.reassignDriverAndVehicle(bookingId, payload);
+      if (response.success && response.data) {
+        return { bookingId, data: response.data };
+      }
+      return rejectWithValue(response.message || 'Không thể đổi tài xế');
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Lỗi khi đổi tài xế');
     }
   }
 );
@@ -449,6 +473,52 @@ const staffBookingSlice = createSlice({
         }
       })
       .addCase(assignDriverAndVehicle.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      // Re-assign Driver and Vehicle
+      .addCase(reassignDriverAndVehicle.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(reassignDriverAndVehicle.fulfilled, (state, action) => {
+        state.loading = false;
+
+        const { bookingId, data } = action.payload;
+        const status = toBookingStatus(data.booking.status);
+        const tripAssignment = createTripAssignment(data.assignment);
+
+        const index = state.bookings.findIndex(b => b._id === bookingId);
+        if (index !== -1) {
+          state.bookings[index] = {
+            ...state.bookings[index],
+            status: status,
+            status_text: data.booking.status_text,
+            tripAssignment
+          };
+        }
+
+        if (state.currentBooking?._id === bookingId) {
+          state.currentBooking = {
+            ...state.currentBooking,
+            status: status,
+            status_text: data.booking.status_text,
+            tripAssignment
+          };
+        }
+
+        if (state.bookingDetails?.booking._id === bookingId) {
+          state.bookingDetails.booking = {
+            ...state.bookingDetails.booking,
+            status: status,
+            status_text: data.booking.status_text,
+            tripAssignment
+          };
+          state.bookingDetails.canAssign = false;
+        }
+      })
+      .addCase(reassignDriverAndVehicle.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload as string;
       })

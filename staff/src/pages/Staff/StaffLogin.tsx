@@ -9,7 +9,7 @@ export default function StaffLogin() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { loading, error, isAuthenticated } = useAppSelector((state) => state.staff);
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -52,7 +52,7 @@ export default function StaffLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError('');
-    
+
     if (!validateForm()) {
       return;
     }
@@ -60,7 +60,7 @@ export default function StaffLogin() {
     try {
       await dispatch(staffLogin(formData)).unwrap();
       navigate('/staff-dashboard');
-      
+
     } catch (err: any) {
       // Error đã được lưu trong state staff.error
     }
@@ -77,10 +77,10 @@ export default function StaffLogin() {
 
   return (
     <div className="min-h-screen relative bg-linear-to-br from-gray-900 via-blue-900 to-emerald-900 flex items-center justify-center p-4">
-      <button 
-      onClick={() => navigate('/')}
-      className='absolute top-8 left-8 rounded-3xl transition bg-blue-800 p-2.5 text-white cursor-pointer hover:bg-blue-900'>
-         <Home size={30} />
+      <button
+        onClick={() => navigate('/')}
+        className='absolute top-8 left-8 rounded-3xl transition bg-blue-800 p-2.5 text-white cursor-pointer hover:bg-blue-900'>
+        <Home size={30} />
       </button>
       <div className="bg-white/95 backdrop-blur-sm rounded-[2.5rem] shadow-2xl w-full max-w-md p-8 border border-white/20">
         {/* Header */}

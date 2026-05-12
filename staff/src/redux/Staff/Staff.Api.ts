@@ -6,24 +6,23 @@ import {
   StaffAuthResponse,
   StaffResponse,
   StaffListResponse,
-  ApiResponse 
+  ApiResponse,
+  ApiResponseWithData
 } from '../../types/Staff.types';
 
 export const staffApi = {
   register: async (payload: StaffRegisterPayload): Promise<{ token: string; staff: Staff }> => {
     try {
-      // Registering staff
       const response = await fetch(getApiUrl('/staff/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
-        credentials: 'include', // Quan trọng: để gửi/nhận cookie
+        credentials: 'include',
       });
       
       const data: StaffAuthResponse = await response.json();
-      // Register response received
       
       if (!response.ok) {
         throw new Error(data.message || 'Registration failed');
@@ -41,6 +40,7 @@ export const staffApi = {
           phone: data.data.phone,
           email: data.data.email,
           username: data.data.username,
+          role: data.data.role || 'staff',
           created_at: new Date().toISOString(),
         }
       };
@@ -81,7 +81,8 @@ export const staffApi = {
         name: data.data.name,
         phone: data.data.phone,
         email: data.data.email,
-        username: data.data.username
+        username: data.data.username,
+        role: data.data.role || 'staff'
       }));
       
       return {
@@ -92,6 +93,7 @@ export const staffApi = {
           phone: data.data.phone,
           email: data.data.email,
           username: data.data.username,
+          role: data.data.role || 'staff',
           created_at: new Date().toISOString(),
         }
       };
@@ -233,6 +235,82 @@ export const staffApi = {
     } catch (error) {
       // Change password error occurred
       throw error;
+    }
+  },
+
+  requestPasswordChange: async (method: 'email' | 'sms', token?: string): Promise<{ otpId: string; expiresAt: string; contact: string }> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(getApiUrl('/staff/request-password-change'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ method }),
+      credentials: 'include',
+    });
+
+    const data: ApiResponseWithData<{ otpId: string; expiresAt: string; contact: string }> = await response.json();
+
+    if (!response.ok || !data.success || !data.data) {
+      throw new Error(data.message || 'Gửi OTP thất bại');
+    }
+
+    return data.data;
+  },
+
+  verifyOtp: async (otpId: string, otp: string, token?: string): Promise<{ verificationToken: string }> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(getApiUrl('/staff/verify-otp'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ otpId, otp }),
+      credentials: 'include',
+    });
+
+    const data: ApiResponseWithData<{ verificationToken: string }> = await response.json();
+
+    if (!response.ok || !data.success || !data.data) {
+      throw new Error(data.message || 'Xác thực OTP thất bại');
+    }
+
+    return data.data;
+  },
+
+  changePasswordWithOtp: async (
+    payload: { currentPassword: string; newPassword: string; verificationToken: string },
+    token?: string
+  ): Promise<void> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(getApiUrl('/staff/change-password'), {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(payload),
+      credentials: 'include',
+    });
+
+    const data: ApiResponse = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Đổi mật khẩu thất bại');
     }
   },
 

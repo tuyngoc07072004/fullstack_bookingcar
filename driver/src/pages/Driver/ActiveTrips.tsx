@@ -6,11 +6,12 @@ import { Navigation} from 'lucide-react';
 interface ActiveTripsProps {
   trips: DriverTrip[];
   onConfirm: (assignmentId: string, bookingId: string, reason?: string) => void;
+  onDecline: (assignmentId: string, bookingId: string, reason?: string) => void;
   onComplete: (bookingId: string) => void;
   loading?: boolean;
 }
 
-export default function ActiveTrips({ trips, onConfirm, onComplete, loading }: ActiveTripsProps) {
+export default function ActiveTrips({ trips, onConfirm, onDecline, onComplete, loading }: ActiveTripsProps) {
   const [confirmingTripId, setConfirmingTripId] = useState<string | null>(null);
   const [lowOccupancyReason, setLowOccupancyReason] = useState<Record<string, string>>({});
   const [showReasonModal, setShowReasonModal] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export default function ActiveTrips({ trips, onConfirm, onComplete, loading }: A
           key={trip.id}
           trip={trip}
           onConfirm={() => handleConfirmClick(trip)}
+          onDecline={(bookingId, assignmentId, reason) => onDecline(assignmentId, bookingId, reason)}
           onComplete={() => onComplete(trip.booking_id)}
           isConfirming={confirmingTripId === trip.id}
           showReasonModal={showReasonModal === trip.id}

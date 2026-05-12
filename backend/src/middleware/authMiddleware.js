@@ -26,14 +26,14 @@ const authMiddleware = async (req, res, next) => {
       req.userId = decoded.id;
       req.username = decoded.username;
       console.log('🔐 Authenticated as DRIVER:', decoded.username);
-    } else if (decoded.role === 'staff') {
+    } else if (decoded.role === 'staff' || decoded.role === 'admin') {
       req.staffId = decoded.id;
       req.staffUsername = decoded.username;
       req.staffEmail = decoded.email;
-      req.userRole = 'staff';
+      req.userRole = decoded.role;
       req.userId = decoded.id;
       req.username = decoded.username;
-      console.log('🔐 Authenticated as STAFF:', decoded.username);
+      console.log(`🔐 Authenticated as ${decoded.role?.toUpperCase()}:`, decoded.username);
     } else {
       req.userRole = 'unknown';
       req.userId = decoded.id;

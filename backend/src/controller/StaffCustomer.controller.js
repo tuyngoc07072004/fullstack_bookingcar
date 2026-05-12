@@ -6,7 +6,7 @@ class StaffCustomerController {
 
   async getAllCustomers(req, res) {
     try {
-      const { page = 1, limit = 20, search } = req.query;
+      const { page = 1, limit = 20, search, status } = req.query;
       
       const query = {};
       if (search) {
@@ -15,6 +15,9 @@ class StaffCustomerController {
           { phone: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } }
         ];
+      }
+      if (status && ['active', 'inactive'].includes(status)) {
+        query.status = status;
       }
       
       const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -222,6 +225,46 @@ class StaffCustomerController {
       console.error('❌ Lỗi lấy chi tiết booking:', error);
       return res.status(500).json(
         ApiResponse.error('Không thể lấy chi tiết booking', error.message)
+      );
+    }
+  }
+
+  async updateCustomerStatus(req, res) {
+    try {
+      if (req.userRole !== 'admin') {
+        return res.status(403).json(
+          ApiResponse.error('Chỉ admin mới có quyền cập nhật trạng thái khách hàng')
+        );
+      }
+
+      const { customerId } = req.params;
+      const { status } = req.body;
+
+      if (!['active', 'inactive'].includes(status)) {
+        return res.status(400).json(
+          ApiResponse.error('Trạng thái không hợp lệ')
+        );
+      }
+
+      const customer = await Customer.findByIdAndUpdate(
+        customerId,
+        { status, updated_at: new Date() },
+        { new: true, runValidators: true }
+      );
+
+      if (!customer) {
+        return res.status(404).json(
+          ApiResponse.error('Không tìm thấy khách hàng')
+        );
+      }
+
+      return res.status(200).json(
+        ApiResponse.success(customer, 'Cập nhật trạng thái khách hàng thành công')
+      );
+    } catch (error) {
+      console.error('❌ Lỗi cập nhật trạng thái khách hàng:', error);
+      return res.status(500).json(
+        ApiResponse.error('Không thể cập nhật trạng thái khách hàng', error.message)
       );
     }
   }

@@ -1,9 +1,8 @@
-// middleware/roleMiddleware.js
 const requireStaff = (req, res, next) => {
-  if (req.userRole !== 'staff') {
+  if (req.userRole !== 'staff' && req.userRole !== 'admin') {
     return res.status(403).json({
       success: false,
-      message: 'Bạn không có quyền thực hiện thao tác này. Chỉ nhân viên mới có quyền.'
+      message: 'Bạn không có quyền thực hiện thao tác này. Chỉ nhân viên hoặc quản trị viên mới có quyền.'
     });
   }
   next();

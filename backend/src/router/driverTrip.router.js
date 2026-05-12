@@ -12,6 +12,7 @@ router.post('/self-booking', requireDriver, driverTripController.createDriverSel
 router.get('/:driverId/trips', driverTripController.getDriverTrips);
 router.get('/:driverId/stats', driverTripController.getDriverStats);
 router.put('/confirm-trip', requireDriver, driverTripController.confirmTrip);
+router.put('/decline-trip', requireDriver, driverTripController.declineTrip);
 router.put('/complete-trip/:bookingId', requireDriver, driverTripController.completeTrip);
 
 module.exports = router;

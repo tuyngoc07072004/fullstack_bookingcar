@@ -1,5 +1,6 @@
 const Booking = require('../models/Booking.models');
 const TripAssignment = require('../models/TripAssignment.models');
+const Trip = require('../models/Trip.models');
 const Driver = require('../models/Driver.models');
 const Vehicle = require('../models/Vehicle.models');
 const Customer = require('../models/Customer.models');
@@ -12,6 +13,7 @@ class DriverTripController {
     this.getDriverTrips = this.getDriverTrips.bind(this);
     this.getDriverStats = this.getDriverStats.bind(this);
     this.confirmTrip = this.confirmTrip.bind(this);
+    this.declineTrip = this.declineTrip.bind(this);
     this.completeTrip = this.completeTrip.bind(this);
     this.getDriverStatus = this.getDriverStatus.bind(this);
     this.getMyVehicle = this.getMyVehicle.bind(this);
@@ -55,13 +57,14 @@ class DriverTripController {
         .lean();
       const paymentMap = new Map(payments.map((p) => [String(p.booking_id), p]));
       
-      // Format dữ liệu giống với frontend Driver.types
-      const trips = assignments.map(assignment => {
+      // Build base rows
+      const tripRows = assignments.map(assignment => {
         const booking = assignment.booking_id;
         const p = booking?._id ? paymentMap.get(String(booking._id)) : null;
         return {
           id: assignment._id,
           booking_id: booking?._id,
+          trip_id: booking?.trip_id ? String(booking.trip_id) : null,
           driver_confirm: assignment.driver_confirm,
           booking_status: booking?.status || 'pending',
           pickup_location: booking?.pickup_location || '',
@@ -69,6 +72,7 @@ class DriverTripController {
           customer_name: booking?.customer_name || '',
           customer_phone: booking?.customer_phone || '',
           trip_date: booking?.trip_date,
+          passengers: booking?.passengers || 0,
           total_occupancy: booking?.passengers || 0,
           vehicle_seats: booking?.seats || 0,
           vehicle_name: booking?.vehicleType?.type_name || booking?.vehicle_type_id?.type_name,
@@ -80,9 +84,49 @@ class DriverTripController {
           price: booking?.price || 0,
           payment_method: booking?.payment_method || p?.payment_method || 'cash',
           payment_status: p?.payment_status || 'pending',
-          paid_at: p?.paid_at || null
+          paid_at: p?.paid_at || null,
+          customers: booking?._id ? [{
+            booking_id: booking._id,
+            assignment_id: assignment._id,
+            customer_name: booking?.customer_name || '',
+            customer_phone: booking?.customer_phone || '',
+            pickup_location: booking?.pickup_location || '',
+            dropoff_location: booking?.dropoff_location || '',
+            passengers: booking?.passengers || 0,
+            driver_confirm: assignment.driver_confirm,
+            start_time: assignment.start_time || null,
+            payment_status: p?.payment_status || 'pending'
+          }] : []
         };
       });
+
+      // Gộp các booking cùng chuyến để driver nhìn thành 1 card
+      const groupedMap = new Map();
+      for (const row of tripRows) {
+        const tripDateIso = row.trip_date ? new Date(row.trip_date).toISOString() : '';
+        const fallbackKey = `${tripDateIso}|${row.pickup_location}|${row.dropoff_location}|${row.vehicle_name}`;
+        const groupKey = row.trip_id || fallbackKey;
+
+        if (!groupedMap.has(groupKey)) {
+          groupedMap.set(groupKey, { ...row });
+          continue;
+        }
+
+        const g = groupedMap.get(groupKey);
+        g.total_occupancy += row.passengers || 0;
+        g.price = Number(g.price || 0) + Number(row.price || 0);
+        g.customers = [...(g.customers || []), ...(row.customers || [])];
+
+        // Nếu trong nhóm có booking chưa confirm thì giữ trạng thái pending assign để tài xế xử lý
+        if (g.booking_status !== 'assigned' && row.booking_status === 'assigned') {
+          g.booking_status = 'assigned';
+          g.driver_confirm = row.driver_confirm;
+          g.id = row.id;
+          g.booking_id = row.booking_id;
+        }
+      }
+
+      const trips = Array.from(groupedMap.values());
       
       // ✅ FIX: Wrap trong ApiResponse.success
       return res.status(200).json(
@@ -227,6 +271,98 @@ class DriverTripController {
   }
 
   /**
+   * Tài xế từ chối nhận chuyến (khi chưa bắt đầu)
+   * PUT /api/driverTrip/decline-trip
+   */
+  async declineTrip(req, res) {
+    try {
+      const { assignmentId, bookingId, reason } = req.body;
+      const driverId = req.driverId;
+      const note = String(reason || '').trim();
+
+      if (!assignmentId || !bookingId) {
+        return res.status(400).json(ApiResponse.error('Vui lòng cung cấp đầy đủ thông tin'));
+      }
+      if (!note) {
+        return res.status(400).json(ApiResponse.error('Vui lòng nhập lý do hủy nhận khách'));
+      }
+
+      const assignment = await TripAssignment.findById(assignmentId);
+      if (!assignment) {
+        return res.status(404).json(ApiResponse.error('Không tìm thấy phân công chuyến'));
+      }
+
+      if (assignment.driver_id.toString() !== driverId) {
+        return res.status(403).json(ApiResponse.error('Bạn không phải tài xế được phân công chuyến này'));
+      }
+
+      const booking = await Booking.findById(bookingId);
+      if (!booking) {
+        return res.status(404).json(ApiResponse.error('Không tìm thấy booking'));
+      }
+
+      if (!['assigned', 'in-progress', 'awaiting_payment', 'paid'].includes(booking.status)) {
+        return res.status(400).json(
+          ApiResponse.error(`Không thể từ chối chuyến ở trạng thái ${booking.status_text}`)
+        );
+      }
+
+      const originalTripId = booking.trip_id ? String(booking.trip_id) : null;
+      booking.notes = booking.notes ? `${booking.notes}\n[Driver decline] ${note}` : `[Driver decline] ${note}`;
+      booking.low_occupancy_reason = note;
+      booking.status = 'confirmed'; // trả về để nhân viên phân công lại
+      booking.trip_id = null;
+      await booking.save();
+
+      // Gỡ booking khỏi Trip nếu có
+      if (originalTripId) {
+        const trip = await Trip.findById(originalTripId);
+        if (trip) {
+          await trip.removeBooking(String(booking._id));
+          if ((trip.bookings || []).length === 0) {
+            trip.status = 'cancelled';
+            await trip.save();
+          }
+        }
+      }
+
+      // Kết thúc assignment của khách này
+      assignment.low_occupancy_reason = note;
+      assignment.end_time = new Date();
+      await assignment.save();
+      await assignment.deleteOne();
+
+      // Nếu tài xế không còn assignment active thì giải phóng tài xế/xe
+      const remainingAssignments = await TripAssignment.countDocuments({
+        driver_id: driverId,
+        end_time: null
+      });
+      if (remainingAssignments === 0) {
+        await Driver.findByIdAndUpdate(driverId, { status: 'active', current_vehicle_id: null });
+        if (assignment.vehicle_id) {
+          await Vehicle.findByIdAndUpdate(assignment.vehicle_id, { status: 'ready' });
+        }
+      }
+
+      return res.status(200).json(
+        ApiResponse.success(
+          {
+            bookingId: booking._id,
+            status: booking.status,
+            status_text: booking.status_text
+          },
+          'Đã từ chối nhận chuyến'
+        )
+      );
+    } catch (error) {
+      console.error('❌ Lỗi declineTrip:', error);
+      return res.status(500).json(
+        ApiResponse.error('Lỗi server khi từ chối chuyến', error.message)
+      );
+    }
+  }
+
+  /**
    * Hoàn thành chuyến đi
    * PUT /api/driverTrip/complete-trip/:bookingId
    */
@@ -269,7 +405,8 @@ class DriverTripController {
       assignment.end_time = new Date();
       await assignment.save();
       
-      booking.status = 'completed';
+      // Kết thúc di chuyển => chờ thanh toán (theo workflow mới)
+      booking.status = 'awaiting_payment';
       await booking.save();
       
       // Cập nhật thống kê khách hàng
@@ -281,7 +418,7 @@ class DriverTripController {
         }
       }
       
-      // Kiểm tra tất cả các chuyến chưa hoàn thành của tài xế này
+      // Kiểm tra tất cả các chuyến chưa kết thúc (end_time=null) của tài xế này
       const remainingAssignments = await TripAssignment.countDocuments({
         driver_id: driverId,
         end_time: null
@@ -306,7 +443,7 @@ class DriverTripController {
           assignmentId: assignment._id,
           status: booking.status,
           status_text: booking.status_text
-        }, 'Hoàn thành chuyến đi thành công')
+        }, 'Kết thúc di chuyển thành công, chuyển sang chờ thanh toán')
       );
       
     } catch (error) {

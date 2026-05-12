@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle, AlertCircle, Search, Filter, 
   ChevronLeft, ChevronRight, Edit2, RefreshCw, 
-  Plus, Trash2, Car, Settings, Eye
+  Plus, Trash2, Car, Settings, Eye, X 
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { 
@@ -424,9 +424,11 @@ export default function VehiclesTab() {
       )}
 
       {/* Search and Filter Bar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search Input */}
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      {/* Search and Filter Section */}
+      <div className="flex flex-col gap-4">
+        {/* Row 1: Search Input and Search Button */}
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1 relative">
             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -435,25 +437,28 @@ export default function VehiclesTab() {
               value={searchKeyword}
               onChange={(e) => setSearchKeyword(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+              className="w-full pl-11 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none text-sm sm:text-base"
             />
           </div>
           
-          {/* Search Button */}
           <button
             onClick={handleSearch}
-            className="px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors flex items-center gap-2"
+            className="px-4 sm:px-6 py-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
           >
             <Search size={18} />
-            Tìm kiếm
+            <span className="hidden sm:inline">Tìm kiếm</span>
+            <span className="sm:hidden">Tìm</span>
           </button>
-          
+        </div>
+
+        {/* Row 2: Filters and Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3">
           {/* Filter by Status */}
-          <div className="relative">
+          <div className="flex-1 relative">
             <select
               value={selectedStatus}
               onChange={(e) => handleFilterByStatus(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none bg-white pr-10"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none bg-white pr-10 text-sm sm:text-base"
             >
               <option value="">Tất cả trạng thái</option>
               {VEHICLE_STATUS_OPTIONS.map(opt => (
@@ -464,11 +469,11 @@ export default function VehiclesTab() {
           </div>
           
           {/* Filter by Seats */}
-          <div className="relative">
+          <div className="flex-1 relative">
             <select
               value={selectedSeats}
               onChange={(e) => handleFilterBySeats(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none bg-white pr-10"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none bg-white pr-10 text-sm sm:text-base"
             >
               <option value="">Tất cả số chỗ</option>
               {VEHICLE_SEAT_OPTIONS.map(opt => (
@@ -478,54 +483,78 @@ export default function VehiclesTab() {
             <Settings size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
           
-          {/* Add Vehicle Button */}
-          <button
-            onClick={handleAddVehicle}
-            className="px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center gap-2"
-          >
-            <Plus size={18} />
-            Thêm xe
-          </button>
-          
-          {/* Refresh Button */}
-          <button
-            onClick={handleResetFilters}
-            className="p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-            title="Làm mới"
-          >
-            <RefreshCw size={18} className="text-gray-500" />
-          </button>
-        </div>
-        
-        {/* Search Result Info */}
-        {searchKeyword && (
-          <div className="mt-3 text-sm text-gray-500">
-            Kết quả tìm kiếm cho: <span className="font-medium text-gray-700">"{searchKeyword}"</span>
-            {vehicles.length > 0 ? (
-              <span className="ml-2 text-emerald-600">({vehicles.length} xe)</span>
-            ) : (
-              <span className="ml-2 text-red-500">(Không tìm thấy)</span>
-            )}
+          {/* Action Buttons Group */}
+          <div className="flex gap-3">
+            {/* Add Vehicle Button */}
+            <button
+              onClick={handleAddVehicle}
+              className="flex-1 sm:flex-none px-4 sm:px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+            >
+              <Plus size={18} />
+              <span className="hidden sm:inline">Thêm xe</span>
+              <span className="sm:hidden">Thêm</span>
+            </button>
+            
+            {/* Refresh Button */}
+            <button
+              onClick={handleResetFilters}
+              className="px-3 sm:px-4 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              title="Làm mới"
+            >
+              <RefreshCw size={18} className="text-gray-500" />
+            </button>
           </div>
-        )}
-        
-        {(selectedStatus || selectedSeats) && (
-          <div className="mt-2 text-sm text-gray-500">
-            Đang lọc theo: 
-            {selectedStatus && (
-              <span className="font-medium text-gray-700 ml-1">
+        </div>
+      </div>
+      
+      {/* Search Result Info */}
+      {searchKeyword && (
+        <div className="mt-3 text-xs sm:text-sm text-gray-500">
+          Kết quả tìm kiếm cho: <span className="font-medium text-gray-700">"{searchKeyword}"</span>
+          {vehicles.length > 0 ? (
+            <span className="ml-2 text-emerald-600">({vehicles.length} xe)</span>
+          ) : (
+            <span className="ml-2 text-red-500">(Không tìm thấy)</span>
+          )}
+        </div>
+      )}
+      
+      {/* Filter Info */}
+      {(selectedStatus || selectedSeats) && (
+        <div className="mt-2 text-xs sm:text-sm text-gray-500 flex flex-wrap items-center gap-1">
+          <span>Đang lọc theo:</span>
+          {selectedStatus && (
+            <span className="inline-flex items-center gap-1">
+              <span className="font-medium text-gray-700">
                 {VEHICLE_STATUS_OPTIONS.find(opt => opt.value === selectedStatus)?.label}
               </span>
-            )}
-            {selectedSeats && (
-              <span className="font-medium text-gray-700 ml-1">
+              <button
+                onClick={() => handleFilterByStatus('')}
+                className="text-gray-400 hover:text-red-500 transition-colors"
+                title="Bỏ lọc"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          )}
+          {selectedStatus && selectedSeats && <span>•</span>}
+          {selectedSeats && (
+            <span className="inline-flex items-center gap-1">
+              <span className="font-medium text-gray-700">
                 {VEHICLE_SEAT_OPTIONS.find(opt => opt.value.toString() === selectedSeats)?.label}
               </span>
-            )}
-          </div>
-        )}
-      </div>
-
+              <button
+                onClick={() => handleFilterBySeats('')}
+                className="text-gray-400 hover:text-red-500 transition-colors"
+                title="Bỏ lọc"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
       {/* Vehicles Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         {paginatedVehicles.length === 0 ? (
@@ -543,44 +572,44 @@ export default function VehiclesTab() {
           </div>
         ) : (
           <>
-            <table className="w-full">
+            <table className="min-w-[1200px] w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">STT</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Tên Xe</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Biển Số</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Số Chỗ</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Loại Xe</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Trạng Thái</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Ngày Tạo</th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-gray-600">Thao Tác</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[60px]">STT</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[200px]">Tên Xe</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[150px]">Biển Số</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[100px]">Số Chỗ</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[150px]">Loại Xe</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[180px]">Trạng Thái</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[120px]">Ngày Tạo</th>
+                  <th className="px-4 py-4 text-right text-sm font-semibold text-gray-600 w-[180px]">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paginatedVehicles.map((vehicle, index) => (
                   <tr key={vehicle._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
                       {(currentPage - 1) * itemsPerPage + index + 1}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <div className="font-medium text-gray-900">{vehicle.vehicle_name}</div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <span className="font-mono text-gray-600">{vehicle.license_plate}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <span className="px-2 py-1 bg-gray-100 rounded-lg text-sm">
                         {vehicle.seats} chỗ
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">{vehicle.vehicle_type}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 text-gray-600 whitespace-nowrap">{vehicle.vehicle_type}</td>
+                    <td className="px-4 py-4 whitespace-nowrap">
                       <StatusBadge status={vehicle.status} />
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
                       {new Date(vehicle.created_at).toLocaleDateString('vi-VN')}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-4 text-right whitespace-nowrap">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleViewVehicle(vehicle)}
@@ -619,7 +648,7 @@ export default function VehiclesTab() {
             
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100">
+              <div className="flex justify-between items-center px-4 py-4 border-t border-gray-100">
                 <div className="text-sm text-gray-500">
                   Hiển thị {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, vehicles.length)} trên {vehicles.length} xe
                 </div>
@@ -670,7 +699,6 @@ export default function VehiclesTab() {
           </>
         )}
       </div>
-
       {/* Add/Edit/View Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

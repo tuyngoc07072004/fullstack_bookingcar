@@ -1,4 +1,4 @@
-import { Calendar,Home, BarChart3, UserCheck, Car, Users, LogOut, CreditCard } from 'lucide-react';
+import { Calendar, Home, BarChart3, UserCheck, Car, Users, LogOut, CreditCard, ShieldCheck, Settings, BadgeDollarSign } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -8,7 +8,6 @@ interface SidebarProps {
   staffInfo: any;
   onLogout: () => void;
 }
-
 function SidebarButton({ icon, label, onClick, active }: any) {
   return (
     <button
@@ -24,8 +23,8 @@ function SidebarButton({ icon, label, onClick, active }: any) {
     </button>
   );
 }
-
 export default function Sidebar({ activeTab, onTabChange, isOpen, onClose, staffInfo, onLogout }: SidebarProps) {
+  const isAdmin = staffInfo?.role === 'admin';
   const handleHomeClick = () => {
     onClose();
     window.location.href = '/';
@@ -40,77 +39,99 @@ export default function Sidebar({ activeTab, onTabChange, isOpen, onClose, staff
       )}
 
       <aside className={`
-        fixed inset-y-0 left-0 w-64 bg-linear-to-b from-gray-900 to-blue-900 text-white p-6 z-50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
+        fixed inset-y-0 left-0 w-80 bg-linear-to-b from-gray-900 to-blue-900 text-white p-6 z-50 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex flex-col h-full">
           <div className="flex gap-2 items-start mb-10">
-            <h2 className="text-2xl font-bold hidden md:flex items-center gap-2">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
                 <nav onClick={handleHomeClick}>
                 <Home size={28} className="text-emerald-500 cursor-pointer hover:text-emerald-400 transition-colors" />
                 </nav>
-                Staff Panel
+                {isAdmin ? 'Admin Panel' : 'Staff Panel'}
             </h2>
           </div>
           
           <nav className="space-y-2 flex-1">
-          
-
-            <SidebarButton 
-              onClick={() => { onTabChange('bookings'); onClose(); }} 
-              icon={<Calendar size={20} />} 
-              label="Đơn Hàng" 
-              active={activeTab === 'bookings'} 
+            {isAdmin ? (
+              <>
+                <SidebarButton
+                  onClick={() => { onTabChange('adminVehiclePricing'); onClose(); }}
+                  icon={<BadgeDollarSign size={20} />}
+                  label="Quản lý giá xe"
+                  active={activeTab === 'adminVehiclePricing'}
+                />
+                <SidebarButton
+                  onClick={() => { onTabChange('adminStaffAccounts'); onClose(); }}
+                  icon={<ShieldCheck size={20} />}
+                  label="Quản lý nhân viên"
+                  active={activeTab === 'adminStaffAccounts'}
+                />
+                <SidebarButton
+                  onClick={() => { onTabChange('adminDriverAccounts'); onClose(); }}
+                  icon={<UserCheck size={20} />}
+                  label="Quản lý tài xế"
+                  active={activeTab === 'adminDriverAccounts'}
+                />
+                <SidebarButton
+                  onClick={() => { onTabChange('adminUserAccounts'); onClose(); }}
+                  icon={<Users size={20} />}
+                  label="Quản lý khách hàng"
+                  active={activeTab === 'adminUserAccounts'}
+                />
+              </>
+            ) : (
+              <>
+                <SidebarButton 
+                  onClick={() => { onTabChange('bookings'); onClose(); }} 
+                  icon={<Calendar size={20} />} 
+                  label="Đơn Hàng" 
+                  active={activeTab === 'bookings'} 
+                />
+                <SidebarButton 
+                  onClick={() => { onTabChange('payments'); onClose(); }} 
+                  icon={<CreditCard size={20} />} 
+                  label="Thanh Toán" 
+                  active={activeTab === 'payments'} 
+                />
+                <SidebarButton 
+                  onClick={() => { onTabChange('stats'); onClose(); }} 
+                  icon={<BarChart3 size={20} />} 
+                  label="Thống Kê" 
+                  active={activeTab === 'stats'} 
+                />
+                <SidebarButton 
+                  onClick={() => { onTabChange('drivers'); onClose(); }} 
+                  icon={<UserCheck size={20} />} 
+                  label="Tài Xế" 
+                  active={activeTab === 'drivers'} 
+                />
+                <SidebarButton 
+                  onClick={() => { onTabChange('vehicles'); onClose(); }} 
+                  icon={<Car size={20} />} 
+                  label="Phương Tiện" 
+                  active={activeTab === 'vehicles'} 
+                />
+                <SidebarButton 
+                  onClick={() => { onTabChange('customers'); onClose(); }} 
+                  icon={<Users size={20} />} 
+                  label="Khách Hàng" 
+                  active={activeTab === 'customers'} 
+                />
+              </>
+            )}
+            <SidebarButton
+               onClick={() => { onTabChange('informationStaff'); onClose(); }} 
+              icon={<Settings size={20} />} 
+              label="Thông tin cá nhân" 
+              active={activeTab === 'informationStaff'} 
             />
-
-            <SidebarButton 
-              onClick={() => { onTabChange('payments'); onClose(); }} 
-              icon={<CreditCard size={20} />} 
-              label="Thanh Toán" 
-              active={activeTab === 'payments'} 
-            />
-            <SidebarButton 
-              onClick={() => { onTabChange('stats'); onClose(); }} 
-              icon={<BarChart3 size={20} />} 
-              label="Thống Kê" 
-              active={activeTab === 'stats'} 
-            />
-
-            <SidebarButton 
-              onClick={() => { onTabChange('drivers'); onClose(); }} 
-              icon={<UserCheck size={20} />} 
-              label="Tài Xế" 
-              active={activeTab === 'drivers'} 
-            />
-
-            <SidebarButton 
-              onClick={() => { onTabChange('vehicles'); onClose(); }} 
-              icon={<Car size={20} />} 
-              label="Phương Tiện" 
-              active={activeTab === 'vehicles'} 
-            />
-            
-            <SidebarButton 
-              onClick={() => { onTabChange('customers'); onClose(); }} 
-              icon={<Users size={20} />} 
-              label="Khách Hàng" 
-              active={activeTab === 'customers'} 
-            />
-            
-            <div className="md:hidden">
-              <SidebarButton
-                onClick={handleHomeClick}
-                icon={<Home size={20} />}
-                label="Trang Chủ"
-                active={false}
-              />
-            </div>
           </nav>
 
           {staffInfo && (
             <div className="mt-auto pt-6 border-t border-gray-700">
               <div className="bg-white/10 rounded-2xl p-4 text-sm">
-                <div className="text-xs text-gray-300 font-bold uppercase tracking-wider mb-1">Nhân viên</div>
+                <div className="text-xs text-gray-300 font-bold uppercase tracking-wider mb-1">{isAdmin ? 'Quản trị viên' : 'Nhân viên'}</div>
                 <div className="font-bold">{staffInfo.name}</div>
                 <div className="text-xs text-gray-300 mt-1">{staffInfo.phone}</div>
                 <div className="text-xs text-gray-300 mt-1">{staffInfo.email}</div>

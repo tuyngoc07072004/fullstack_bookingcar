@@ -6,6 +6,8 @@ import {
   DriverStatusResponse,
   ConfirmTripPayload,
   ConfirmTripResponse,
+  DeclineTripPayload,
+  DeclineTripResponse,
   CompleteTripResponse,
   ApiResponse
 } from '../../types/DriverTrip.types';
@@ -96,6 +98,23 @@ export const confirmTrip = async (payload: ConfirmTripPayload): Promise<ConfirmT
     );
     
     // ✅ Response format: { success: true, data: {...}, message: '...' }
+    const result = response.data.data!;
+    return result;
+  } catch (error: any) {
+    throw error.response?.data || { error: error.message };
+  }
+};
+
+/**
+ * Từ chối nhận chuyến
+ * PUT /api/driverTrip/decline-trip
+ */
+export const declineTrip = async (payload: DeclineTripPayload): Promise<DeclineTripResponse> => {
+  try {
+    const response = await apiClient.put<ApiResponse<DeclineTripResponse>>(
+      '/driverTrip/decline-trip',
+      payload
+    );
     const result = response.data.data!;
     return result;
   } catch (error: any) {

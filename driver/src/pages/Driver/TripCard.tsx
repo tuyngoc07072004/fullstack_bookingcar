@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DriverTrip, BOOKING_STATUS_TEXT, BOOKING_STATUS_COLORS } from '../../types/DriverTrip.types';
-import { Calendar, MapPin, Users, Car, CheckCircle, AlertCircle, ChevronRight, Clock } from 'lucide-react';
+import { Calendar, MapPin, Users, Car, CheckCircle, AlertCircle, ChevronRight, Clock, XCircle } from 'lucide-react';
 import { useAppDispatch } from '../../redux/store';
 import { confirmCashPayment, createTransferPaymentForBooking, fetchPaymentStatus } from '../../redux/Payment/Payment.Slice';
 
 interface TripCardProps {
   trip: DriverTrip;
   onConfirm: () => void;
+  onDecline: (bookingId: string, assignmentId: string, reason?: string) => void;
   onComplete: () => void;
   isConfirming?: boolean;
   showReasonModal?: boolean;
@@ -19,6 +20,7 @@ interface TripCardProps {
 export default function TripCard({ 
   trip, 
   onConfirm, 
+  onDecline,
   onComplete,
   isConfirming = false,
   showReasonModal = false,
@@ -29,8 +31,9 @@ export default function TripCard({
 }: TripCardProps) {
   const dispatch = useAppDispatch();
 
-  const [localPaymentStatus, setLocalPaymentStatus] = useState(trip.payment_status || 'pending');
+  const [localPaymentStatuses, setLocalPaymentStatuses] = useState<Record<string, 'pending' | 'paid_cash' | 'paid_transfer'>>({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPaymentBookingId, setSelectedPaymentBookingId] = useState<string | null>(null);
   const [paymentOption, setPaymentOption] = useState<'cash' | 'transfer' | null>(null);
   const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
   const [paymentPayUrl, setPaymentPayUrl] = useState<string | null>(null);
@@ -39,15 +42,28 @@ export default function TripCard({
   const paymentPollingCleanupRef = useRef<null | (() => void)>(null);
 
   useEffect(() => {
-    setLocalPaymentStatus(trip.payment_status || 'pending');
-  }, [trip.booking_id, trip.payment_status]);
+    const customers = trip.customers && trip.customers.length > 0
+      ? trip.customers
+      : [{
+          booking_id: trip.booking_id,
+          payment_status: trip.payment_status || 'pending'
+        }];
+
+    const statusMap: Record<string, 'pending' | 'paid_cash' | 'paid_transfer'> = {};
+    customers.forEach((c: any) => {
+      statusMap[c.booking_id] = (c.payment_status || 'pending') as 'pending' | 'paid_cash' | 'paid_transfer';
+    });
+    setLocalPaymentStatuses(statusMap);
+  }, [trip.booking_id, trip.customers, trip.payment_status]);
 
   const paymentStatusText = useMemo(() => {
-    const s = localPaymentStatus || 'pending';
-    if (s === 'paid_cash') return 'Đã thanh toán tiền mặt';
-    if (s === 'paid_transfer') return 'Đã thanh toán chuyển khoản';
-    return 'Chưa thanh toán';
-  }, [localPaymentStatus]);
+    return (status?: string) => {
+      const s = status || 'pending';
+      if (s === 'paid_cash') return 'Đã thanh toán tiền mặt';
+      if (s === 'paid_transfer') return 'Đã thanh toán chuyển khoản';
+      return 'Chưa thanh toán';
+    };
+  }, []);
 
   const getStatusBadge = () => {
     const baseClass = "px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider";
@@ -74,8 +90,11 @@ export default function TripCard({
   const isCompleted = trip.booking_status === 'completed';
   const occupancyRate = (trip.total_occupancy / trip.vehicle_seats) * 100;
 
-  const canConfirmPayment = trip.booking_status !== 'cancelled' && localPaymentStatus === 'pending';
-  const hasPaid = localPaymentStatus === 'paid_cash' || localPaymentStatus === 'paid_transfer';
+  const hasPaid = Object.values(localPaymentStatuses).some((s) => s === 'paid_cash' || s === 'paid_transfer');
+
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [selectedDeclineCustomer, setSelectedDeclineCustomer] = useState<{ booking_id: string; assignment_id?: string } | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
 
   const stopAndClosePaymentModal = () => {
     if (paymentPollingCleanupRef.current) {
@@ -83,6 +102,7 @@ export default function TripCard({
       paymentPollingCleanupRef.current = null;
     }
     setShowPaymentModal(false);
+    setSelectedPaymentBookingId(null);
     setPaymentOption(null);
     setPaymentQrCode(null);
     setPaymentPayUrl(null);
@@ -100,7 +120,10 @@ export default function TripCard({
       try {
         const res = await dispatch(fetchPaymentStatus(bookingId)).unwrap();
         if (res?.payment_status && res.payment_status !== 'pending') {
-          setLocalPaymentStatus(res.payment_status);
+          setLocalPaymentStatuses((prev) => ({
+            ...prev,
+            [bookingId]: res.payment_status
+          }));
           clearInterval(interval);
           stopAndClosePaymentModal();
         }
@@ -114,12 +137,14 @@ export default function TripCard({
   };
 
   const handleChooseCash = async () => {
-    if (!trip.booking_id) return;
+    if (!selectedPaymentBookingId) return;
     setPaymentError(null);
     try {
-      await dispatch(confirmCashPayment(trip.booking_id)).unwrap();
-      // optimistic update
-      setLocalPaymentStatus('paid_cash');
+      await dispatch(confirmCashPayment(selectedPaymentBookingId)).unwrap();
+      setLocalPaymentStatuses((prev) => ({
+        ...prev,
+        [selectedPaymentBookingId]: 'paid_cash'
+      }));
       stopAndClosePaymentModal();
     } catch (e: any) {
       setPaymentError(e?.message || 'Xác nhận tiền mặt thất bại');
@@ -127,18 +152,19 @@ export default function TripCard({
   };
 
   const handleChooseTransfer = async () => {
-    if (!trip.booking_id) return;
+    if (!selectedPaymentBookingId) return;
     setPaymentError(null);
     setPaymentCreating(true);
     setPaymentOption('transfer');
 
     try {
-      const qrRes = await dispatch(createTransferPaymentForBooking(trip.booking_id)).unwrap();
+      const qrRes = await dispatch(createTransferPaymentForBooking(selectedPaymentBookingId)).unwrap();
       setPaymentCreating(false);
       setPaymentError(null);
 
       // Ưu tiên đi thẳng tới cổng MoMo (giống BookRide)
       if (qrRes.payUrl) {
+        startPollingPaymentPaid(selectedPaymentBookingId);
         stopAndClosePaymentModal();
         window.location.href = qrRes.payUrl;
         return;
@@ -185,32 +211,10 @@ export default function TripCard({
       {/* Body */}
       <div className="p-6">
         {/* Route */}
-        <div className="flex gap-4 mb-6">
-          <div className="flex flex-col items-center">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></div>
-            <div className="w-0.5 h-16 bg-linear-to-b from-emerald-300 to-red-300"></div>
-            <div className="w-3 h-3 rounded-full bg-red-500 ring-4 ring-red-100"></div>
-          </div>
-          <div className="flex-1 space-y-5">
-            <div>
-              <div className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Điểm đón</div>
-              <div className="font-semibold text-gray-800 flex items-start gap-2">
-                <MapPin size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                <span className="line-clamp-2">{trip.pickup_location}</span>
-              </div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Điểm đến</div>
-              <div className="font-semibold text-gray-800 flex items-start gap-2">
-                <MapPin size={16} className="text-red-500 shrink-0 mt-0.5" />
-                <span className="line-clamp-2">{trip.dropoff_location}</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Phần Số khách */}
           <div className="bg-gray-50 p-4 rounded-2xl">
             <div className="text-xs text-gray-400 font-bold uppercase mb-2 flex items-center gap-1">
               <Users size={14} /> Số khách
@@ -232,42 +236,80 @@ export default function TripCard({
                 Danh sách khách (booking)
               </div>
               <div className="space-y-2">
-                <div className="text-sm font-bold text-gray-900">
-                  {trip.customer_name || 'Khách'}{' '}
-                  {trip.customer_phone ? (
-                    <span className="text-xs font-semibold text-gray-500">
-                      ({trip.customer_phone})
-                    </span>
-                  ) : null}
-                </div>
+                {(trip.customers && trip.customers.length > 0 ? trip.customers : [{
+                  booking_id: trip.booking_id,
+                  assignment_id: trip.id,
+                  customer_name: trip.customer_name || 'Khách',
+                  customer_phone: trip.customer_phone,
+                  pickup_location: trip.pickup_location,
+                  dropoff_location: trip.dropoff_location,
+                  passengers: trip.total_occupancy || 1,
+                  driver_confirm: trip.driver_confirm,
+                  start_time: trip.start_time || null,
+                  payment_status: trip.payment_status
+                }]).map((c) => (
+                  <div key={c.booking_id} className="rounded-xl border border-gray-200 bg-white p-3">
+                    <div className="text-sm font-bold text-gray-900">
+                      {c.customer_name || 'Khách'}{' '}
+                      {c.customer_phone ? (
+                        <span className="text-xs font-semibold text-gray-500">
+                          ({c.customer_phone})
+                        </span>
+                      ) : null}
+                      <span className="text-xs text-gray-500 ml-2">- {c.passengers} khách</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-600">
+                      <span className="font-bold">Đón:</span> {c.pickup_location || '—'}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      <span className="font-bold">Đến:</span> {c.dropoff_location || '—'}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <div className="text-xs font-bold text-gray-500">Thanh toán</div>
+                      <div className="text-sm font-bold text-gray-900">
+                        {paymentStatusText(localPaymentStatuses[c.booking_id] || c.payment_status)}
+                      </div>
+                    </div>
+                    {(localPaymentStatuses[c.booking_id] || c.payment_status || 'pending') === 'pending' ? (
+                      <button
+                        onClick={() => {
+                          setSelectedPaymentBookingId(c.booking_id);
+                          setShowPaymentModal(true);
+                          setPaymentOption(null);
+                          setPaymentError(null);
+                        }}
+                        className="w-full mt-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition-colors"
+                      >
+                        Xác nhận thanh toán
+                      </button>
+                    ) : (
+                      <div className="w-full mt-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-xs text-center">
+                        Đã thanh toán
+                      </div>
+                    )}
 
-                <div className="text-xs text-gray-600">
-                  <span className="font-bold">Đón:</span> {trip.pickup_location}
-                </div>
-                <div className="text-xs text-gray-600">
-                  <span className="font-bold">Đến:</span> {trip.dropoff_location}
-                </div>
-
-                <div className="flex items-center justify-between gap-3 pt-1">
-                  <div className="text-xs font-bold text-gray-500">Thanh toán</div>
-                  <div className="text-sm font-bold text-gray-900">{paymentStatusText}</div>
-                </div>
-
-                {canConfirmPayment && (
-                  <button
-                    onClick={() => {
-                      setShowPaymentModal(true);
-                      setPaymentOption(null);
-                      setPaymentError(null);
-                    }}
-                    className="w-full mt-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-colors"
-                  >
-                    Xác nhận thanh toán
-                  </button>
-                )}
+                    {trip.booking_status !== 'completed' &&
+                      trip.booking_status !== 'cancelled' &&
+                      c.assignment_id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDeclineCustomer({ booking_id: c.booking_id, assignment_id: c.assignment_id });
+                            setShowDeclineModal(true);
+                          }}
+                          className="w-full mt-2 bg-white border border-red-200 hover:bg-red-50 text-red-700 py-2 rounded-lg font-bold text-xs transition-all flex items-center justify-center gap-2"
+                        >
+                          <XCircle size={14} />
+                          Hủy nhận khách
+                        </button>
+                      )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
+
+          {/* Phần Phương tiện - sẽ nhảy xuống dưới trên mobile */}
           <div className="bg-gray-50 p-4 rounded-2xl">
             <div className="text-xs text-gray-400 font-bold uppercase mb-2 flex items-center gap-1">
               <Car size={14} /> Phương tiện
@@ -283,7 +325,7 @@ export default function TripCard({
           {isAssigned && !showReasonModal && (
             <button 
               onClick={onConfirm}
-              disabled={isConfirming || !hasPaid}
+              disabled={isConfirming}
               className="w-full bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white py-4 rounded-2xl font-bold uppercase tracking-wide text-sm shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isConfirming ? (
@@ -300,6 +342,7 @@ export default function TripCard({
               )}
             </button>
           )}
+
 
           {showReasonModal && (
             <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 animate-in fade-in slide-in-from-bottom-2">
@@ -324,7 +367,7 @@ export default function TripCard({
                 </button>
                 <button 
                   onClick={onConfirmWithReason}
-                  disabled={!reason.trim() || !hasPaid}
+                  disabled={!reason.trim()}
                   className="flex-2 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-300 text-white py-2.5 rounded-xl font-bold text-sm transition-all disabled:cursor-not-allowed"
                 >
                   Gửi & Khởi Hành
@@ -355,7 +398,10 @@ export default function TripCard({
         <div className="mt-4 p-3 bg-gray-50 rounded-xl text-sm text-gray-700 border-l-4 border-emerald-300">
           <div className="flex items-center justify-between gap-3">
             <div className="font-bold text-gray-800">Thanh toán:</div>
-            <div className="font-semibold">{paymentStatusText}</div>
+            <div className="font-semibold">
+              {Object.values(localPaymentStatuses).filter((s) => s !== 'pending').length}/
+              {Object.keys(localPaymentStatuses).length} khách đã thanh toán
+            </div>
           </div>
         </div>
 
@@ -382,7 +428,9 @@ export default function TripCard({
             </div>
 
             <div className="text-sm text-gray-600 mb-4">
-                  Khách cho chuyến này hiện đang: <span className="font-bold text-gray-900">{paymentStatusText}</span>
+                  Booking hiện đang: <span className="font-bold text-gray-900">
+                    {selectedPaymentBookingId ? paymentStatusText(localPaymentStatuses[selectedPaymentBookingId]) : 'Chưa thanh toán'}
+                  </span>
             </div>
 
             {!paymentOption && (
@@ -455,6 +503,63 @@ export default function TripCard({
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Decline Modal */}
+      {showDeclineModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-bold text-gray-900">Hủy nhận khách</h3>
+              <button
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setSelectedDeclineCustomer(null);
+                  setDeclineReason('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              Vui lòng nhập lý do để nhân viên có thể phân công tài xế khác.
+            </p>
+            <textarea
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              rows={3}
+              placeholder="Ví dụ: bận chuyến khác, xe gặp sự cố, không kịp thời gian..."
+              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-sm"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  setShowDeclineModal(false);
+                  setSelectedDeclineCustomer(null);
+                  setDeclineReason('');
+                }}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 font-bold text-sm"
+              >
+                Quay lại
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedDeclineCustomer?.booking_id && selectedDeclineCustomer?.assignment_id) {
+                    onDecline(selectedDeclineCustomer.booking_id, selectedDeclineCustomer.assignment_id, declineReason);
+                  }
+                  setShowDeclineModal(false);
+                  setSelectedDeclineCustomer(null);
+                  setDeclineReason('');
+                }}
+                disabled={!declineReason.trim()}
+                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white rounded-xl font-bold text-sm"
+              >
+                Xác nhận hủy
+              </button>
+            </div>
           </div>
         </div>
       )}

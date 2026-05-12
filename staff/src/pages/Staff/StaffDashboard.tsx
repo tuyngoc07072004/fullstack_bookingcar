@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
-import { staffLogout } from '../../redux/Staff/Staff.Slice';
+import { setStaff, staffLogout } from '../../redux/Staff/Staff.Slice';
 import { fetchAllVehicles } from '../../redux/Vehicle/Vehicle.Slice';
 import { fetchAllDrivers } from '../../redux/DriverManagement/DriverManagement.Slice';
 import { Menu, LogOut, User, Calendar, Car, Users, BarChart3 } from 'lucide-react';
@@ -15,6 +15,11 @@ import DriversTab from './DriversTab';
 import VehiclesTab from './VehiclesTab';
 import CustomersTab from './CustomersTab';
 import PaymentsTab from './PaymentsTab';
+import InformationStaff from './InformationStaff';
+import AdminVehiclePricingTab from './AdminVehiclePricingTab';
+import AdminStaffAccountsTab from './AdminStaffAccountsTab';
+import AdminDriverAccountsTab from './AdminDriverAccountsTab';
+import AdminUserAccountsTab from './AdminUserAccountsTab';
 import { Booking } from '../../types/Booking.types';
 import { Customer, CustomerBooking } from '../../types/StaffCustomer.types';
 
@@ -33,7 +38,10 @@ export default function StaffDashboard() {
   const [occupancy, setOccupancy] = useState<any[]>([]);
   const [assignment, setAssignment] = useState({ driverId: '', vehicleId: '' });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'bookings' | 'drivers' | 'vehicles' | 'customers' | 'stats' | 'payments'>('bookings');
+  const [activeTab, setActiveTab] = useState<
+    'bookings' | 'drivers' | 'vehicles' | 'customers' | 'stats' | 'payments' | 'informationStaff' |
+    'adminVehiclePricing' | 'adminStaffAccounts' | 'adminDriverAccounts' | 'adminUserAccounts'
+  >('bookings');
   const [isLoading, setIsLoading] = useState(true);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [bookingToAssign, setBookingToAssign] = useState<Booking | null>(null);
@@ -163,17 +171,15 @@ export default function StaffDashboard() {
 
     try {
       const token = getToken();
-      const response = await fetch('/api/staff/assign-driver', {
+      const response = await fetch(`/api/staff/bookings/${bookingToAssign._id}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          bookingId: bookingToAssign._id,
           driverId: assignment.driverId,
-          vehicleId: assignment.vehicleId,
-          staffId: staffInfo?._id || staffInfo?.id
+          vehicleId: assignment.vehicleId
         })
       });
 
@@ -196,6 +202,25 @@ export default function StaffDashboard() {
     }
   };
 
+  const staff = staffInfo || getStaffInfoFromStorage();
+  const isAdmin = staff?.role === 'admin';
+
+  useEffect(() => {
+    if (!staff) return;
+    if (
+      staff.role === 'admin' &&
+      !['adminVehiclePricing', 'adminStaffAccounts', 'adminDriverAccounts', 'adminUserAccounts', 'informationStaff'].includes(activeTab)
+    ) {
+      setActiveTab('adminVehiclePricing');
+    }
+    if (
+      staff.role !== 'admin' &&
+      ['adminVehiclePricing', 'adminStaffAccounts', 'adminDriverAccounts', 'adminUserAccounts'].includes(activeTab)
+    ) {
+      setActiveTab('bookings');
+    }
+  }, [staff, activeTab]);
+
   // Loading state
   if (isLoading || authLoading) {
     return (
@@ -208,7 +233,6 @@ export default function StaffDashboard() {
     );
   }
 
-  const staff = staffInfo || getStaffInfoFromStorage();
   if (!staff) {
     return null;
   }
@@ -255,6 +279,11 @@ export default function StaffDashboard() {
             {activeTab === 'vehicles' && 'Quản Lý Phương Tiện'}
             {activeTab === 'customers' && 'Quản Lý Khách Hàng'}
             {activeTab === 'stats' && 'Thống Kê Hệ Thống'}
+            {activeTab === 'adminVehiclePricing' && 'Quản lý giá xe'}
+            {activeTab === 'adminStaffAccounts' && 'Quản lý nhân viên'}
+            {activeTab === 'adminDriverAccounts' && 'Quản Lý tài xế'}
+            {activeTab === 'adminUserAccounts' && 'Quản lý khách hàng'}
+            {activeTab === 'informationStaff' && 'Thông Tin Cá Nhân'}
           </h1>
           <div className="flex items-center gap-4">
             <div className="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
@@ -264,45 +293,18 @@ export default function StaffDashboard() {
           </div>
         </header>
 
-        {!isSidebarOpen && (
-          <div className="md:hidden mb-6">
-            <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => {
-                      setActiveTab(item.id as any);
-                      setIsSidebarOpen(false);
-                    }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      activeTab === item.id
-                        ? 'bg-emerald-500 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    <Icon size={18} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'bookings' && (
+        {!isAdmin && activeTab === 'bookings' && (
           <BookingsTab
             onViewBooking={setViewingBooking}
             onAssignDriver={handleAssignDriver}
           />
         )}
 
-        {activeTab === 'payments' && (
+        {!isAdmin && activeTab === 'payments' && (
           <PaymentsTab onViewBooking={setViewingBooking} />
         )}
 
-        {activeTab === 'stats' && (
+        {!isAdmin && activeTab === 'stats' && (
           <StatsTab
             bookings={[]}
             customers={[]}
@@ -311,13 +313,27 @@ export default function StaffDashboard() {
           />
         )}
         
-        {activeTab === 'drivers' && <DriversTab />}
+        {!isAdmin && activeTab === 'drivers' && <DriversTab />}
         
-        {activeTab === 'vehicles' && <VehiclesTab />}
+        {!isAdmin && activeTab === 'vehicles' && <VehiclesTab />}
         
-        {activeTab === 'customers' && (
-          <CustomersTab 
+        {!isAdmin && activeTab === 'customers' && (
+          <CustomersTab
             onViewCustomer={handleViewCustomer}
+          />
+        )}
+        {isAdmin && activeTab === 'adminVehiclePricing' && <AdminVehiclePricingTab />}
+        {isAdmin && activeTab === 'adminStaffAccounts' && <AdminStaffAccountsTab />}
+        {isAdmin && activeTab === 'adminDriverAccounts' && <AdminDriverAccountsTab />}
+        {isAdmin && activeTab === 'adminUserAccounts' && <AdminUserAccountsTab />}
+
+        {activeTab === 'informationStaff' && (
+          <InformationStaff
+            staffInfo={staff}
+            onProfileUpdated={(updatedInfo) => {
+              setStaffInfo(updatedInfo);
+              dispatch(setStaff(updatedInfo as any));
+            }}
           />
         )}
       </main>

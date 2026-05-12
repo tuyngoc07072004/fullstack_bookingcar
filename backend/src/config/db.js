@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.DB_URL, {});
@@ -9,3 +10,4 @@ const connectDB = async () => {
   }
 };
 module.exports = connectDB;
+module.exports.BASE_URL = BASE_URL;

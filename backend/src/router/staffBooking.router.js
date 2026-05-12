@@ -15,5 +15,6 @@ router.get('/:id/details', staffBookingController.getBookingDetailsForStaff);
 router.get('/:id', staffBookingController.getBookingById);
 router.patch('/:id/confirm', staffBookingController.confirmBooking);
 router.post('/:id/assign', staffBookingController.assignDriverAndVehicle);
+router.post('/:id/reassign', staffBookingController.reassignDriverAndVehicle);
 router.patch('/:id/status', staffBookingController.updateBookingStatus);
 module.exports = router;

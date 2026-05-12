@@ -1,4 +1,12 @@
-export type BookingStatus = 'pending' | 'confirmed' | 'assigned' | 'in-progress' | 'completed' | 'cancelled';
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'assigned'
+  | 'in-progress'
+  | 'awaiting_payment'
+  | 'paid'
+  | 'completed'
+  | 'cancelled';
 export type DriverStatus = 'active' | 'inactive' | 'busy';
 
 export type TripAssignmentSource = 'staff' | 'driver';
@@ -7,6 +15,7 @@ export type HistoryFilter = 'all' | TripAssignmentSource;
 export interface DriverTrip {
   id: string;
   booking_id: string;
+  trip_id?: string | null;
   driver_confirm: number; 
   booking_status: BookingStatus;
   pickup_location: string;
@@ -27,6 +36,18 @@ export interface DriverTrip {
   payment_method?: 'cash' | 'transfer';
   payment_status?: 'pending' | 'paid_cash' | 'paid_transfer';
   paid_at?: string | null;
+  customers?: Array<{
+    booking_id: string;
+    assignment_id?: string;
+    customer_name: string;
+    customer_phone?: string;
+    pickup_location?: string;
+    dropoff_location?: string;
+    passengers: number;
+    driver_confirm?: number;
+    start_time?: string | null;
+    payment_status?: 'pending' | 'paid_cash' | 'paid_transfer';
+  }>;
 }
 
 export interface DriverTripStats {
@@ -57,6 +78,18 @@ export interface ConfirmTripResponse {
   status_text: string;
 }
 
+export interface DeclineTripPayload {
+  assignmentId: string;
+  bookingId: string;
+  reason?: string;
+}
+
+export interface DeclineTripResponse {
+  bookingId: string;
+  status: BookingStatus;
+  status_text: string;
+}
+
 export interface CompleteTripResponse {
   bookingId: string;
   assignmentId: string;
@@ -77,7 +110,9 @@ export const BOOKING_STATUS_TEXT: Record<BookingStatus, string> = {
   pending: 'Chờ xác nhận',
   confirmed: 'Đã xác nhận',
   assigned: 'Đã phân công',
-  'in-progress': 'Đang thực hiện',
+  'in-progress': 'Đang di chuyển',
+  awaiting_payment: 'Chờ thanh toán',
+  paid: 'Đã thanh toán',
   completed: 'Hoàn thành',
   cancelled: 'Đã hủy'
 };
@@ -87,6 +122,8 @@ export const BOOKING_STATUS_COLORS: Record<BookingStatus, string> = {
   confirmed: 'bg-blue-100 text-blue-800',
   assigned: 'bg-purple-100 text-purple-800',
   'in-progress': 'bg-emerald-100 text-emerald-800',
+  awaiting_payment: 'bg-yellow-100 text-yellow-800',
+  paid: 'bg-blue-100 text-blue-800',
   completed: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800'
 };

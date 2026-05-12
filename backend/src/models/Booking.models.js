@@ -97,7 +97,7 @@ const bookingSchema = new mongoose.Schema({
   // Trạng thái
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'assigned', 'in-progress', 'completed', 'cancelled'],
+    enum: ['pending', 'confirmed', 'assigned', 'in-progress', 'awaiting_payment', 'paid', 'completed', 'cancelled'],
     default: 'pending',
     index: true
   },
@@ -174,7 +174,9 @@ bookingSchema.virtual('status_text').get(function() {
     'pending': 'Chờ xác nhận',
     'confirmed': 'Đã xác nhận',
     'assigned': 'Đã phân công',
-    'in-progress': 'Đang thực hiện',
+    'in-progress': 'Đang di chuyển',
+    'awaiting_payment': 'Chờ thanh toán',
+    'paid': 'Đã thanh toán',
     'completed': 'Hoàn thành',
     'cancelled': 'Đã hủy'
   };
@@ -248,7 +250,7 @@ bookingSchema.methods.updateCustomerStats = async function() {
  * Cập nhật trạng thái booking
  */
 bookingSchema.methods.updateStatus = async function(newStatus, reason = null) {
-  const validStatuses = ['pending', 'confirmed', 'assigned', 'in-progress', 'completed', 'cancelled'];
+  const validStatuses = ['pending', 'confirmed', 'assigned', 'in-progress', 'awaiting_payment', 'paid', 'completed', 'cancelled'];
   
   if (!validStatuses.includes(newStatus)) {
     throw new Error('Trạng thái không hợp lệ');

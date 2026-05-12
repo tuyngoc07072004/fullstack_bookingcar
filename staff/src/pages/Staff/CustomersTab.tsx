@@ -7,7 +7,7 @@ import {
   clearSelectedCustomer
 } from '../../redux/StaffCustomer/StaffCustomer.Slice';
 import { Customer, CustomerBooking } from '../../types/StaffCustomer.types';
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { Eye, Phone, Mail, X } from 'lucide-react';
 
 interface CustomersTabProps {
@@ -150,8 +150,7 @@ export default function CustomersTab({ onViewCustomer }: CustomersTabProps) {
   return (
     <>
       <div className="space-y-4">
-        {/* Search Bar */}
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
           <div className="flex-1 relative">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
@@ -159,78 +158,76 @@ export default function CustomersTab({ onViewCustomer }: CustomersTabProps) {
               placeholder="Tìm kiếm theo tên hoặc số điện thoại..."
               value={debouncedSearch}
               onChange={handleSearchChange}
-              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm sm:text-base"
             />
           </div>
-          <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg">
+          <div className="text-sm text-gray-500 bg-gray-50 px-4 py-2 rounded-lg text-left whitespace-nowrap">
             Tổng số: {customersPagination.totalItems} khách hàng
           </div>
-        </div>
-
+      </div>
         {/* Customers Table */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+        <table className="min-w-[1000px] w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[60px]">STT</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[150px]">Tên Khách Hàng</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[120px]">Số Điện Thoại</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[150px]">Email</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[100px]">Tổng Chuyến</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[120px]">Tổng Chi Tiêu</th>
+              <th className="px-4 py-4 text-left text-sm font-semibold text-gray-600 w-[100px]">Ngày Đăng Ký</th>
+              <th className="px-4 py-4 text-center text-sm font-semibold text-gray-600 w-[80px]">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {customers.length === 0 ? (
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">STT</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Tên Khách Hàng</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Số Điện Thoại</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Email</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Tổng Chuyến</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Tổng Chi Tiêu</th>
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Ngày Đăng Ký</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-600">Thao Tác</th>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  Không tìm thấy khách hàng nào
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {customers.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
-                    Không tìm thấy khách hàng nào
+            ) : (
+              customers.map((customer, index) => (
+                <tr key={customer._id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-4 text-sm text-gray-500 whitespace-nowrap">
+                    {(currentPage - 1) * customersPagination.itemsPerPage + index + 1}
+                  </td>
+                  <td className="px-4 py-4 font-medium text-gray-900 whitespace-nowrap">
+                    {customer.name}
+                  </td>
+                  <td className="px-4 py-4 text-gray-600 whitespace-nowrap">
+                    {customer.phone}
+                  </td>
+                  <td className="px-4 py-4 text-gray-600 whitespace-nowrap">
+                    {customer.email || 'không có mail'}
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {customer.total_bookings || 0}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-emerald-600 font-medium whitespace-nowrap">
+                    {customer.total_spent ? formatCurrency(customer.total_spent) : '0₫'}
+                  </td>
+                  <td className="px-4 py-4 text-gray-500 text-sm whitespace-nowrap">
+                    {formatDate(customer.created_at)}
+                  </td>
+                  <td className="px-4 py-4 text-center whitespace-nowrap">
+                    <button
+                      onClick={() => handleViewCustomer(customer)}
+                      className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Xem chi tiết"
+                    >
+                      <Eye size={18} />
+                    </button>
                   </td>
                 </tr>
-              ) : (
-                customers.map((customer, index) => (
-                  <tr key={customer._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {(currentPage - 1) * customersPagination.itemsPerPage + index + 1}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-gray-900">
-                      {customer.name}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {customer.phone}
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {customer.email || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {customer.total_bookings || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-emerald-600 font-medium">
-                      {customer.total_spent ? formatCurrency(customer.total_spent) : '0₫'}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 text-sm">
-                      {formatDate(customer.created_at)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleViewCustomer(customer)}
-                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Xem chi tiết"
-                      >
-                        <Eye size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
         {/* Pagination */}
         {customersPagination.totalPages > 1 && (
           <div className="flex justify-between items-center mt-4">

@@ -6,6 +6,9 @@ import {
   DriverLoginResponse,
   DriverUpdateProfilePayload,
   ChangePasswordPayload,
+  OtpRequestPayload,
+  OtpRequestResponse,
+  OtpVerifyResponse,
   ApiResponse 
 } from '../../types/Driver.types';
 
@@ -138,6 +141,44 @@ export const driverApi = {
     }
     
     return data.data as Driver;
+  },
+
+  requestPasswordChange: async (payload: OtpRequestPayload): Promise<OtpRequestResponse> => {
+    const response = await fetch(getApiUrl('/driver/request-password-change'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+
+    const data: ApiResponse<OtpRequestResponse> = await response.json();
+
+    if (!response.ok || !data.success || !data.data) {
+      throw new Error(data.message || 'Gửi OTP thất bại');
+    }
+
+    return data.data;
+  },
+
+  verifyOtp: async (otpId: string, otp: string): Promise<OtpVerifyResponse> => {
+    const response = await fetch(getApiUrl('/driver/verify-otp'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ otpId, otp }),
+    });
+
+    const data: ApiResponse<OtpVerifyResponse> = await response.json();
+
+    if (!response.ok || !data.success || !data.data) {
+      throw new Error(data.message || 'Xác thực OTP thất bại');
+    }
+
+    return data.data;
   },
 
   // Đổi mật khẩu

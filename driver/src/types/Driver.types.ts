@@ -41,6 +41,21 @@ export interface DriverUpdateProfilePayload {
 export interface ChangePasswordPayload {
   currentPassword: string;
   newPassword: string;
+  verificationToken: string;
+}
+
+export interface OtpRequestPayload {
+  method: 'email' | 'sms';
+}
+
+export interface OtpRequestResponse {
+  otpId: string;
+  expiresAt: string;
+  contact: string;
+}
+
+export interface OtpVerifyResponse {
+  verificationToken: string;
 }
 
 export interface ApiResponse<T> {

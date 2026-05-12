@@ -51,6 +51,13 @@ class PaymentController {
         payment.momo_trans_id = Array.isArray(q.transID) ? q.transID[0] : q.transID || q.transId || q.transactionId || null;
         payment.momo_result_code = resultCode != null ? String(resultCode) : null;
         await payment.save();
+
+        // Đồng bộ trạng thái booking theo workflow mới
+        const booking = await Booking.findById(bookingId).select('status');
+        if (booking && booking.status === 'awaiting_payment') {
+          booking.status = 'paid';
+          await booking.save();
+        }
       }
 
       if (target === 'driver-dashboard') {
@@ -424,6 +431,13 @@ class PaymentController {
       payment.paid_at = new Date();
       await payment.save();
 
+      // Đồng bộ trạng thái booking theo workflow mới
+      const bookingPaid = await Booking.findById(bookingId).select('status');
+      if (bookingPaid && bookingPaid.status === 'awaiting_payment') {
+        bookingPaid.status = 'paid';
+        await bookingPaid.save();
+      }
+
       return res.status(200).json(
         ApiResponse.success(
           {
@@ -473,6 +487,13 @@ class PaymentController {
         payment.momo_result_code = String(resultCode);
         payment.momo_raw = body;
         await payment.save();
+
+        // Đồng bộ trạng thái booking theo workflow mới
+        const booking = await Booking.findById(payment.booking_id).select('status');
+        if (booking && booking.status === 'awaiting_payment') {
+          booking.status = 'paid';
+          await booking.save();
+        }
       }
 
       // trả về cho MoMo biết nhận OK

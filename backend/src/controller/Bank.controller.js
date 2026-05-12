@@ -25,7 +25,6 @@ var signature = crypto.createHmac('sha256', secretKey)
 console.log("--------------------SIGNATURE----------------")
 console.log(signature)
 
-//json object send to MoMo endpoint
 const requestBody = JSON.stringify({
     partnerCode : partnerCode,
     partnerName : "Test",

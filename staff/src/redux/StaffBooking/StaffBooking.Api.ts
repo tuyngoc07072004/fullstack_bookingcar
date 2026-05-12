@@ -139,6 +139,18 @@ export const staffBookingApi = {
   },
 
   /**
+   * Đổi tài xế/xe khi tài xế chưa nhận chuyến
+   */
+  async reassignDriverAndVehicle(bookingId: string, payload: AssignDriverPayload): Promise<StaffBookingApiResponse<AssignResponse>> {
+    const response = await fetch(getApiUrl(`/staff/bookings/${bookingId}/reassign`), {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(payload)
+    });
+    return handleResponse<AssignResponse>(response);
+  },
+
+  /**
    * Cập nhật trạng thái booking
    */
   async updateBookingStatus(bookingId: string, payload: UpdateStatusPayload): Promise<StaffBookingApiResponse<UpdateStatusResponse>> {

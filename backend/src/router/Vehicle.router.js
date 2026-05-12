@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const vehicleController = require('../controller/Vehicle.controller');
 const authMiddleware = require('../middleware/authMiddleware');
-const { requireStaff } = require('../middleware/roleMiddleware');
+const { requireStaff, requireAdmin } = require('../middleware/roleMiddleware');
 
 router.use(authMiddleware);
 
@@ -18,6 +18,8 @@ router.get('/search', vehicleController.searchVehicles);
 router.get('/filter', vehicleController.getVehiclesByFilters);
 router.get('/status/:status', vehicleController.getVehiclesByStatus);
 router.get('/seats/:seats', vehicleController.getVehiclesBySeats);
+router.get('/pricing', requireAdmin, vehicleController.getVehiclePricing);
+router.put('/pricing/:id', requireAdmin, vehicleController.updateVehiclePricing);
 router.get('/:id', vehicleController.getVehicleById);
 
 module.exports = router;

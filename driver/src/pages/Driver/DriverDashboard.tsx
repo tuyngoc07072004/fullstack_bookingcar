@@ -5,7 +5,8 @@ import { driverLogout, resetState, updateDriverInfo } from '../../redux/Driver/D
 import { 
   Car, Clock, Navigation, DollarSign, Star, Briefcase, 
   CheckCircle, TrendingUp, LogOut, Home,
-  Plus
+  Plus,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DriverTrip, DriverTripStats, ConfirmTripPayload, HistoryFilter } from '../../types/DriverTrip.types';
@@ -17,6 +18,7 @@ import TripHistory from './TripHistory';
 import DriverStats from './DriverStats';
 import DriverStatusBadge from './DriverStatusBadge';
 import DriverReviewsList from './DriverReviewsList';
+import InformationDriver from './informationDriver';
 
 export default function DriverDashboard() {
   const navigate = useNavigate();
@@ -26,7 +28,7 @@ export default function DriverDashboard() {
   
   const [allTrips, setAllTrips] = useState<DriverTrip[]>([]);
   const [stats, setStats] = useState<DriverTripStats>({ totalTrips: 0, completedTrips: 0, earnings: 0, rating: 0 });
-  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'stats' | 'reviews'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'history' | 'stats' | 'reviews' | 'informationDriver'>('active');
   const [historySource, setHistorySource] = useState<HistoryFilter>('all');
   const [loading, setLoading] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -177,6 +179,16 @@ export default function DriverDashboard() {
     }
   };
 
+  const handleDeclineTrip = async (assignmentId: string, bookingId: string, reason?: string) => {
+    try {
+      await driverTripApi.declineTrip({ assignmentId, bookingId, reason });
+      await fetchDriverData();
+      alert('Đã hủy nhận khách. Nhân viên có thể phân công tài xế khác.');
+    } catch (error: any) {
+      alert(error?.message || 'Hủy nhận khách thất bại');
+    }
+  };
+
   // Handle trip completion
   const handleCompleteTrip = async (bookingId: string) => {
     try {
@@ -206,9 +218,10 @@ export default function DriverDashboard() {
     return null;
   }
 
-  const activeTrips = allTrips.filter(t => t.booking_status !== 'completed' && t.booking_status !== 'cancelled');
+  const endedStatuses = new Set(['awaiting_payment', 'paid', 'completed', 'cancelled']);
+  const activeTrips = allTrips.filter(t => !endedStatuses.has(t.booking_status));
   const completedTrips = allTrips.filter(t => {
-    const ended = t.booking_status === 'completed' || t.booking_status === 'cancelled';
+    const ended = endedStatuses.has(t.booking_status);
     if (!ended) return false;
     if (historySource === 'all') return true;
     const src = t.assignment_source || 'staff';
@@ -331,6 +344,19 @@ export default function DriverDashboard() {
             </div>
           </button>
           <button 
+            onClick={() => setActiveTab('informationDriver')}
+            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
+              activeTab === 'informationDriver' 
+                ? 'bg-gray-900 text-white shadow-md' 
+                : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <User size={18} />
+              Thông tin cá nhân
+            </div>
+          </button>
+          <button 
             onClick={() => setActiveTab('stats')}
             className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${
               activeTab === 'stats' 
@@ -379,11 +405,17 @@ export default function DriverDashboard() {
               <ActiveTrips
                 trips={activeTrips}
                 onConfirm={handleConfirmTrip}
+                onDecline={handleDeclineTrip}
                 onComplete={handleCompleteTrip}
                 loading={tripsLoading}
               />
             ) : activeTab === 'reviews' ? (
               <DriverReviewsList />
+            ) : activeTab === 'informationDriver' ? (
+              <InformationDriver
+                driverInfo={currentDriver}
+                onProfileUpdated={(updatedInfo) => dispatch(updateDriverInfo(updatedInfo as any))}
+              />
             ) : (
               <TripHistory
                 trips={completedTrips}

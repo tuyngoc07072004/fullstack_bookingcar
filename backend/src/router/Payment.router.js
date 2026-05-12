@@ -8,7 +8,6 @@ router.post('/booking/:bookingId/create', paymentController.createPaymentForBook
 router.post('/booking/:bookingId/create-transfer', paymentController.createTransferPaymentForBooking);
 router.get('/booking/:bookingId/status', paymentController.getPaymentStatus);
 
-// Staff/Driver xác nhận tiền mặt
 router.patch(
   '/booking/:bookingId/confirm-cash',
   authMiddleware,
@@ -21,10 +20,8 @@ router.patch(
   paymentController.confirmCashPayment
 );
 
-// MoMo IPN callback
 router.post('/momo/ipn', paymentController.handleMomoIpn);
 
-// MoMo redirect/return URL (fallback khi IPN không gọi được)
 router.get('/momo/return', paymentController.handleMomoReturn);
 
 module.exports = router;

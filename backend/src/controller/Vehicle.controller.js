@@ -876,6 +876,73 @@ const getVehiclesByFilters = async (req, res) => {
   }
 };
 
+const getVehiclePricing = async (req, res) => {
+  try {
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ admin mới có quyền xem bảng giá xe'
+      });
+    }
+
+    const pricing = await VehicleType.find().sort({ seats: 1 });
+    res.status(200).json({
+      success: true,
+      data: pricing
+    });
+  } catch (error) {
+    console.error('❌ Error getting vehicle pricing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi lấy bảng giá xe'
+    });
+  }
+};
+
+const updateVehiclePricing = async (req, res) => {
+  try {
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ admin mới có quyền cập nhật bảng giá xe'
+      });
+    }
+
+    const { id } = req.params;
+    const { base_price, price_per_km, is_active } = req.body;
+
+    const updateData = { updated_at: new Date() };
+    if (typeof base_price === 'number') updateData.base_price = base_price;
+    if (typeof price_per_km === 'number') updateData.price_per_km = price_per_km;
+    if (typeof is_active === 'boolean') updateData.is_active = is_active;
+
+    const updated = await VehicleType.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy loại xe'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Cập nhật bảng giá thành công',
+      data: updated
+    });
+  } catch (error) {
+    console.error('❌ Error updating vehicle pricing:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi cập nhật bảng giá xe'
+    });
+  }
+};
+
 module.exports = {
   addVehicle,
   getAllVehicles,
@@ -887,5 +954,7 @@ module.exports = {
   updateVehicleStatus,
   deleteVehicle,
   getVehicleStats,
-  getVehiclesByFilters
+  getVehiclesByFilters,
+  getVehiclePricing,
+  updateVehiclePricing
 };

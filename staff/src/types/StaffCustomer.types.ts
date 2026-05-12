@@ -5,6 +5,7 @@ export interface Customer {
   name: string;
   phone: string;
   email: string | null;
+  status?: 'active' | 'inactive';
   total_bookings: number;
   total_spent: number;
   last_booking_date: string | null;

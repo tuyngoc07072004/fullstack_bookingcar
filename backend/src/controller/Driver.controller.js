@@ -2,6 +2,8 @@
 const Driver = require('../models/Driver.models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const OtpService = require('../services/OtpService');
+const EmailService = require('../services/EmailService');
 
 // Validate functions
 const validatePhoneNumber = (phone) => {
@@ -16,6 +18,13 @@ const validatePassword = (password) => {
 
 const validateUsername = (username) => {
   return username && username.length >= 4;
+};
+
+const maskContact = (contact, method) => {
+  if (method === 'email') {
+    return contact.replace(/(.{2})(.*)(@.*)/, '$1***$3');
+  }
+  return contact.replace(/(.{3})(.*)(.{2})/, '$1***$3');
 };
 
 // REGISTER DRIVER
@@ -433,13 +442,28 @@ const updateDriverProfile = async (req, res) => {
 // CHANGE PASSWORD
 const changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, verificationToken } = req.body;
     const driverId = req.driverId;
 
-    if (!currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword || !verificationToken) {
       return res.status(400).json({
         success: false,
-        message: 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới'
+        message: 'Vui lòng điền đầy đủ thông tin'
+      });
+    }
+
+    const tokenValid = await OtpService.verifyVerificationToken(verificationToken);
+    if (!tokenValid.valid) {
+      return res.status(400).json({
+        success: false,
+        message: tokenValid.message || 'Mã xác thực không hợp lệ'
+      });
+    }
+
+    if (String(tokenValid.userId) !== String(driverId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Mã xác thực không thuộc tài khoản hiện tại'
       });
     }
 
@@ -487,6 +511,132 @@ const changePassword = async (req, res) => {
   }
 };
 
+// REQUEST PASSWORD CHANGE - Send OTP for driver
+const requestPasswordChangeDriver = async (req, res) => {
+  try {
+    const { method } = req.body;
+    const driverId = req.driverId;
+
+    if (!method) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn phương thức xác thực'
+      });
+    }
+
+    if (!['email', 'sms'].includes(method)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phương thức không hợp lệ'
+      });
+    }
+
+    const driver = await Driver.findById(driverId);
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài xế'
+      });
+    }
+
+    if (method === 'email') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tài khoản tài xế hiện chưa hỗ trợ xác thực qua email'
+      });
+    }
+
+    const contact = driver.phone;
+
+    if (!validatePhoneNumber(contact)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số điện thoại không hợp lệ'
+      });
+    }
+
+    // Generate OTP
+    const otpData = await OtpService.createOtp(driverId, contact, method);
+
+    // Send OTP via email or SMS
+    if (method === 'email') {
+      await EmailService.sendOtpEmail(contact, otpData.otpCode, driver.name);
+    } else if (method === 'sms') {
+      await EmailService.sendOtpSms(contact, otpData.otpCode);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Mã OTP đã được gửi đến ${method === 'email' ? 'email' : 'số điện thoại'}`,
+      data: {
+        otpId: otpData.otpId,
+        expiresAt: otpData.expiresAt,
+        contact: maskContact(contact, method)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Lỗi gửi OTP:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi gửi OTP'
+    });
+  }
+};
+
+// VERIFY OTP for driver
+const verifyDriverOtp = async (req, res) => {
+  try {
+    const { otpId, otp } = req.body;
+    const driverId = req.driverId;
+
+    if (!otpId || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập OTP'
+      });
+    }
+
+    const result = await OtpService.verifyOtp(otpId, otp);
+
+    if (!result.valid) {
+      return res.status(400).json({
+        success: false,
+        message: result.message || 'OTP không hợp lệ'
+      });
+    }
+
+    if (String(result.userId) !== String(driverId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'OTP không thuộc tài khoản hiện tại'
+      });
+    }
+
+    // Generate verification token
+    const verificationToken = await OtpService.generateVerificationToken(otpId);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP xác thực thành công',
+      data: {
+        verificationToken
+      }
+    });
+  } catch (error) {
+    console.error('❌ Lỗi xác thực OTP:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi xác thực OTP'
+    });
+  }
+};
+
+// Helper function to validate email
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 module.exports = {
   registerDriver,
   loginDriver,
@@ -494,5 +644,8 @@ module.exports = {
   getCurrentDriver,
   getDriverStatus,
   updateDriverProfile,
+  requestPasswordChangeDriver,
+  verifyDriverOtp,    
   changePassword
 };
+  

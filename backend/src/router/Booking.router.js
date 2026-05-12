@@ -6,7 +6,6 @@ const { requireStaff } = require('../middleware/roleMiddleware');
 const Booking = require('../models/Booking.models');
 const ApiResponse = require('../models/ApiResponse.models');
 
-// Public routes
 router.post('/', bookingController.createBooking);
 router.post('/calculate-price', bookingController.calculatePrice);
 router.get('/status/:id', bookingController.checkBookingStatus);
@@ -14,7 +13,6 @@ router.get('/phone/:phone', bookingController.getBookingsByPhone);
 router.get('/:id', bookingController.getBookingById);
 router.post('/:id/cancel', bookingController.cancelBooking);
 
-// Staff only routes
 router.put('/:id/confirm', authMiddleware, requireStaff, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);

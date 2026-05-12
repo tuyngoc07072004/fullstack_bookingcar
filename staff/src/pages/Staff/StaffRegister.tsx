@@ -96,7 +96,6 @@ export default function StaffRegister() {
       const result = await dispatch(staffRegister(registerData)).unwrap();
       
       if (result) {
-        // Chuyển về trang login kèm thông báo thành công
         navigate('/staff-login', { 
           state: { message: 'Đăng ký thành công! Vui lòng đăng nhập.' }
         });

@@ -33,6 +33,11 @@ export function ViewBookingModal({ booking, onClose }: any) {
 
   const paymentStatus = booking.payment_status || 'pending';
   const paymentMethod = booking.payment_method || booking.payment_method_text;
+  const driverDeclineReason =
+    booking.low_occupancy_reason ||
+    (typeof booking.notes === 'string' && booking.notes.includes('[Driver decline]')
+      ? booking.notes.split('[Driver decline]').pop()?.trim()
+      : null);
 
   const paymentStatusText =
     paymentStatus === 'paid_cash'
@@ -179,6 +184,14 @@ export function ViewBookingModal({ booking, onClose }: any) {
                 <div className="text-sm">
                   <div className="text-gray-500 text-xs">Bắt đầu chuyến</div>
                   <p className="font-medium text-gray-900">{safeDateLabel(ta.start_time)}</p>
+                </div>
+              )}
+              {driverDeclineReason && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <div className="text-amber-700 text-xs font-semibold uppercase tracking-wide">
+                    Lý do tài xế không nhận khách
+                  </div>
+                  <p className="text-sm font-medium text-amber-900 mt-1">{driverDeclineReason}</p>
                 </div>
               )}
             </div>

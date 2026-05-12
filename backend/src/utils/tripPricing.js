@@ -1,8 +1,4 @@
-// Giá đề xuất thực tế hơn:
-// total = base_fare + (distance_km * per_km_per_person * passengers)
-// Có giá tối thiểu để tránh quãng ngắn quá rẻ.
 const PRICING_TABLE = {
-  // min_fare = base_fare để đảm bảo giá luôn tỉ lệ với số người (không bị "đè" khi quãng đường rất ngắn)
   4: { type_name: 'Xe 4 chỗ', base_fare: 25000, per_km_per_person: 10000, min_fare: 25000 },
   7: { type_name: 'Xe 7 chỗ', base_fare: 30000, per_km_per_person: 10000, min_fare: 30000 },
   9: { type_name: 'Xe 9 chỗ', base_fare: 35000, per_km_per_person: 9500, min_fare: 35000 },

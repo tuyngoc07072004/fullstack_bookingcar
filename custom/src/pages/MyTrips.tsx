@@ -16,7 +16,8 @@ export default function MyTrips() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [cancelReasons, setCancelReasons] = useState<Record<string, string>>({});
+  const [cancelLoading, setCancelLoading] = useState<Record<string, boolean>>({});
   const dispatch = useAppDispatch();
   const { reviewsByBooking, submitting } = useAppSelector((state) => state.driverReview);
 
@@ -62,7 +63,6 @@ export default function MyTrips() {
     setError(null);
     
     try {
-      // Gọi API đúng endpoint
       const response = await fetch(`http://localhost:5000/api/bookings/phone/${phone}`);
       const result = await response.json();
       
@@ -71,7 +71,6 @@ export default function MyTrips() {
         if (result.data.length === 0) {
           setError('Không tìm thấy chuyến đi nào cho số điện thoại này');
         } else {
-          // Fetch review state cho các chuyến hoàn thành
           result.data.forEach((trip: Booking) => {
             if (trip.status === 'completed') {
               dispatch(fetchReviewByBooking(trip._id));
@@ -365,6 +364,54 @@ export default function MyTrips() {
                     <div className="mt-8 p-4 bg-yellow-50 rounded-2xl border border-yellow-100 flex items-center gap-3 text-yellow-800 text-sm font-medium">
                       <AlertCircle size={18} />
                       Chuyến đi đang chờ nhân viên xác nhận. Chúng tôi sẽ gọi cho bạn sớm nhất.
+                    </div>
+                  )}
+                  {trip.status === 'confirmed' && (
+                    <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-3 text-blue-800 text-sm font-medium">
+                      <CheckCircle2 size={18} />
+                      Đã xác nhận, bạn có thể hủy chuyến nếu muốn.
+                    </div>
+                  )}
+                  {['pending','confirmed','assigned'].includes(trip.status) && (
+                    <div className="mt-4 flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nhập lý do hủy chuyến (bắt buộc)"
+                        className="flex-1 p-2 border rounded"
+                        value={cancelReasons[trip._id] || ''}
+                        onChange={e => setCancelReasons(prev => ({ ...prev, [trip._id]: e.target.value }))}
+                      />
+                      <button
+                        onClick={async () => {
+                          const normalizedReason = (cancelReasons[trip._id] || '').trim();
+                          if (!normalizedReason) {
+                            alert('Vui lòng nhập lý do hủy chuyến');
+                            return;
+                          }
+                          setCancelLoading(prev => ({ ...prev, [trip._id]: true }));
+                          try {
+                            const response = await fetch(`http://localhost:5000/api/bookings/${trip._id}/cancel`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ reason: normalizedReason })
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                              setTrips(prev => prev.map(b => b._id === trip._id ? { ...b, status: 'cancelled', low_occupancy_reason: normalizedReason || b.low_occupancy_reason } : b));
+                            } else {
+                              alert(result.message || 'Hủy chuyến không thành công');
+                            }
+                          } catch (e) {
+                            alert('Lỗi khi hủy chuyến');
+                          } finally {
+                            setCancelLoading(prev => ({ ...prev, [trip._id]: false }));
+                          }
+                        }}
+                        disabled={cancelLoading[trip._id] || !(cancelReasons[trip._id] || '').trim()}
+                        className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white px-3 py-2 rounded"
+                      >
+                        {cancelLoading[trip._id] ? 'Đang hủy...' : 'Hủy chuyến'}
+                      </button>
                     </div>
                   )}
                   {trip.status === 'assigned' && (

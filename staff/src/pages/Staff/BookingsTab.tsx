@@ -8,18 +8,19 @@ import {
   updateBookingStatus,
   setFilters,
   clearError,
-  assignDriverAndVehicle
+  assignDriverAndVehicle,
+  reassignDriverAndVehicle
 } from '../../redux/StaffBooking/StaffBooking.Slice';
 import { fetchAllDrivers } from '../../redux/DriverManagement/DriverManagement.Slice';
 import { fetchAllVehicles } from '../../redux/Vehicle/Vehicle.Slice';
-import { StatusBadge, StatCard } from '../../components/Common';
-import { Booking } from '../../types/Booking.types';
+import { StatCard } from '../../components/Common';
+import { StaffBooking } from '../../types/StaffBooking.types';
 import { BOOKING_STATUS_OPTIONS, BookingStatus, CarpoolAssignmentOption } from '../../types/StaffBooking.types';
 import { staffBookingApi } from '../../redux/StaffBooking/StaffBooking.Api';
 
 interface BookingsTabProps {
-  onViewBooking: (booking: Booking) => void;
-  onAssignDriver?: (booking: Booking) => void;
+  onViewBooking: (booking: StaffBooking) => void;
+  onAssignDriver?: (booking: StaffBooking) => void;
 }
 
 const extractDataArray = <T,>(response: any): T[] => {
@@ -35,17 +36,15 @@ const extractAssignment = (response: any): any => {
   return response;
 };
 
-export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsTabProps) {
+export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
   const dispatch = useAppDispatch();
 
-  // Redux state
   const { bookings, stats, loading, error, pagination, filters } = useAppSelector(
     (state) => state.staffBooking
   );
 
-  // Local state
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<StaffBooking | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [tempFilters, setTempFilters] = useState({
@@ -55,9 +54,8 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
     search: filters.search || ''
   });
   const [isMobile, setIsMobile] = useState(false);
-
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
-  const [assigningBooking, setAssigningBooking] = useState<Booking | null>(null);
+  const [assigningBooking, setAssigningBooking] = useState<StaffBooking | null>(null);
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -81,17 +79,14 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Fetch data khi filters thay đổi
   useEffect(() => {
     dispatch(fetchBookings(filters));
   }, [dispatch, filters]);
 
-  // Fetch stats khi component mount
   useEffect(() => {
     dispatch(fetchBookingStats());
   }, [dispatch]);
 
-  // Auto refresh mỗi 30 giây
   useEffect(() => {
     const interval = setInterval(() => {
       dispatch(fetchBookings(filters));
@@ -101,7 +96,6 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
     return () => clearInterval(interval);
   }, [dispatch, filters]);
 
-  // Load tùy chọn phân công (ghép chuyến + tài xế rảnh + xe ready) khi mở modal
   useEffect(() => {
     if (showAssignmentModal && assigningBooking) {
       loadAssignmentOptions(assigningBooking.seats);
@@ -141,7 +135,7 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
     }
   };
 
-  const handleViewBooking = (booking: Booking) => {
+  const handleViewBooking = (booking: StaffBooking) => {
     onViewBooking(booking);
   };
 
@@ -183,7 +177,7 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
   };
 
   // Mở modal phân công
-  const handleOpenAssignModal = (booking: Booking) => {
+  const handleOpenAssignModal = (booking: StaffBooking) => {
     setAssigningBooking(booking);
     setSelectedDriverId('');
     setSelectedVehicleId('');
@@ -235,21 +229,30 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
     setAssigning(true);
 
     try {
-      const result = await dispatch(assignDriverAndVehicle({
-        bookingId: assigningBooking._id,
-        payload: {
-          driverId: selectedDriverId,
-          vehicleId: selectedVehicleId,
-          startTime: startTime || undefined
-        }
-      })).unwrap();
+      const payload = {
+        driverId: selectedDriverId,
+        vehicleId: selectedVehicleId,
+        // datetime-local => ISO để tránh lệch timezone khi backend parse Date()
+        startTime: startTime ? new Date(startTime).toISOString() : undefined
+      };
+
+      const isReassign =
+        assigningBooking.status === 'assigned' &&
+        assigningBooking.tripAssignment?.driver_confirm === 0 &&
+        !assigningBooking.tripAssignment?.start_time;
+
+      const result = isReassign
+        ? await dispatch(reassignDriverAndVehicle({ bookingId: assigningBooking._id, payload })).unwrap()
+        : await dispatch(assignDriverAndVehicle({ bookingId: assigningBooking._id, payload })).unwrap();
 
       const assignment = extractAssignment(result);
       const driverName = assignment.driver?.name || '';
       const vehicleName = assignment.vehicle?.vehicle_name || '';
       const licensePlate = assignment.vehicle?.license_plate || '';
 
-      alert(`Phân công thành công!\nTài xế: ${driverName}\nXe: ${vehicleName} (${licensePlate})`);
+      alert(
+        `${isReassign ? 'Đổi phân công thành công' : 'Phân công thành công'}!\nTài xế: ${driverName}\nXe: ${vehicleName} (${licensePlate})`
+      );
 
       // Refresh danh sách bookings
       dispatch(fetchBookings(filters));
@@ -265,7 +268,7 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
       setStartTime('');
 
     } catch (error: any) {
-      alert(error || 'Phân công thất bại. Vui lòng thử lại.');
+      alert(error || 'Thao tác thất bại. Vui lòng thử lại.');
     } finally {
       setAssigning(false);
     }
@@ -337,6 +340,8 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
       confirmed: 'bg-blue-100 text-blue-800',
       assigned: 'bg-purple-100 text-purple-800',
       'in-progress': 'bg-emerald-100 text-emerald-800',
+      awaiting_payment: 'bg-yellow-100 text-yellow-800',
+      paid: 'bg-blue-100 text-blue-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800'
     };
@@ -618,6 +623,19 @@ export default function BookingsTab({ onViewBooking, onAssignDriver }: BookingsT
                               Phân công
                             </button>
                           )}
+
+                          {booking.status === 'assigned' &&
+                            booking.tripAssignment?.driver_confirm === 0 &&
+                            !booking.tripAssignment?.start_time && (
+                              <button
+                                onClick={() => handleOpenAssignModal(booking)}
+                                className="px-2 py-1.5 bg-orange-100 text-orange-700 rounded-lg text-xs hover:bg-orange-200 transition-colors whitespace-nowrap flex items-center gap-1"
+                                title="Tài xế chưa nhận - đổi tài xế khác"
+                              >
+                                <RefreshCw size={14} />
+                                Đổi tài xế
+                              </button>
+                            )}
                         </div>
                       </td>
                     </tr>

@@ -336,6 +336,7 @@ class BookingController {
     try {
       const { id } = req.params;
       const { reason } = req.body;
+      const normalizedReason = String(reason || '').trim();
 
       const booking = await Booking.findById(id);
 
@@ -345,16 +346,21 @@ class BookingController {
         );
       }
 
-      // Only allow cancellation when status is pending
-      if (booking.status !== 'pending') {
+      if (!normalizedReason) {
+        return res.status(400).json(
+          ApiResponse.error('Vui lòng nhập lý do hủy chuyến')
+        );
+      }
+
+      // Allow cancellation when status is pending/confirmed/assigned
+      if (!['pending', 'confirmed', 'assigned'].includes(booking.status)) {
         return res.status(400).json(
           ApiResponse.error(`Không thể hủy đơn đặt xe ở trạng thái ${booking.status_text}`)
         );
       }
 
-      booking.status = 'cancelled';
-      booking.low_occupancy_reason = reason || 'Khách hàng hủy';
-      await booking.save();
+      // Use model method to handle cancellation and reason
+      await booking.cancel(normalizedReason);
 
       return res.status(200).json(
         ApiResponse.success({ bookingId: id }, 'Hủy đơn đặt xe thành công')

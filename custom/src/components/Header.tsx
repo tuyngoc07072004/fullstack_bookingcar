@@ -20,7 +20,7 @@ export default function Header() {
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50 border-b border-gray-100">
-      <div className="container mx-auto px-4 sm:px-6">
+      <div className="container mx-auto px-4 sm:px-6 bg-white">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group shrink-0">
@@ -32,6 +32,7 @@ export default function Header() {
             </span>
           </Link>
 
+          {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             {menuItems.map((item) => (
               <Link
@@ -42,7 +43,7 @@ export default function Header() {
                 {item.label}
               </Link>
             ))}
-          </nav>
+            <div className="h-6 w-px bg-gray-200 mx-2"></div>
             <a
               href="tel:19001234"
               className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-full text-sm font-bold hover:bg-emerald-100 transition-colors"
@@ -50,7 +51,9 @@ export default function Header() {
               <Phone size={16} />
               1900 1234
             </a>
+          </nav>
 
+          {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className="md:hidden p-2 text-gray-600 hover:text-emerald-500 transition-colors"
@@ -58,6 +61,35 @@ export default function Header() {
           >
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
+        </div>
+
+        <div 
+          className={`
+            md:hidden overflow-hidden transition-all duration-300 ease-in-out
+            ${isMenuOpen ? 'max-h-400 opacity-100' : 'max-h-0 opacity-0'}
+          `}
+        >
+          <nav className="py-4 border-t border-gray-100">
+            <div className="flex flex-col space-y-4">
+              {menuItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="text-sm font-bold text-gray-600 hover:text-emerald-500 transition-colors uppercase tracking-wider py-2"
+                >
+                  {item.label}
+                </Link>
+              ))}
+              <div className="border-t border-gray-100 my-2"></div>
+              <a
+                href="tel:19001234"
+                className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-3 rounded-xl text-sm font-bold hover:bg-emerald-100 transition-colors"
+              >
+                <Phone size={16} />
+                Gọi Ngay: 1900 1234
+              </a>
+            </div>
+          </nav>
         </div>
       </div>
 

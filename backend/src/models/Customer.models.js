@@ -9,7 +9,7 @@ const customerSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: true,
-    unique: true, // unique tự động tạo index
+    unique: true,
     trim: true,
     match: [/^(0[3|5|7|8|9])+([0-9]{8})$/, 'Số điện thoại không hợp lệ']
   },
@@ -18,7 +18,7 @@ const customerSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
     sparse: true,
-    unique: true, // unique tự động tạo index
+    unique: true, 
     validate: {
       validator: function(v) {
         if (!v) return true;
@@ -39,6 +39,11 @@ const customerSchema = new mongoose.Schema({
   last_booking_date: {
     type: Date,
     default: null
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive'],
+    default: 'active'
   }
 }, {
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }

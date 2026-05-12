@@ -4,6 +4,8 @@ export interface Staff {
   phone: string;
   email: string;
   username: string;
+  role?: 'staff' | 'admin';
+  status?: 'active' | 'inactive';
   created_at: string;
   updated_at?: string;
 }
@@ -31,6 +33,7 @@ export interface StaffAuthResponse {
     phone: string;
     email: string;
     username: string;
+    role?: 'staff' | 'admin';
     token: string;
   };
 }

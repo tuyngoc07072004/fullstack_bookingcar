@@ -12,5 +12,6 @@ router.get('/customers', staffCustomerController.getAllCustomers);
 router.get('/customers/:customerId/bookings', staffCustomerController.getCustomerBookings);
 
 router.get('/customers/:customerId/bookings/:bookingId', staffCustomerController.getCustomerBookingDetail);
+router.patch('/customers/:customerId/status', staffCustomerController.updateCustomerStatus);
 
 module.exports = router;

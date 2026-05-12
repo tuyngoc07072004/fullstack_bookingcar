@@ -189,10 +189,45 @@ const searchDrivers = async (req, res) => {
   }
 };
 
+const deleteDriver = async (req, res) => {
+  try {
+    if (req.userRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Chỉ admin mới có quyền xóa tài xế'
+      });
+    }
+
+    const { id } = req.params;
+    const deleted = await Driver.findByIdAndDelete(id).select('_id name phone license_number');
+
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài xế'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã xóa tài xế ${deleted.name || ''}`.trim(),
+      data: deleted
+    });
+  } catch (error) {
+    console.error('❌ Lỗi xóa tài xế:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Lỗi server khi xóa tài xế',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllDrivers,
   getDriverById,
   getDriversByStatus,
   updateDriverStatus,
-  searchDrivers
+  searchDrivers,
+  deleteDriver
 };

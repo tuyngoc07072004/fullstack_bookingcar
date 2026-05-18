@@ -393,7 +393,15 @@ class DriverTripController {
           ApiResponse.error('Bạn không phải tài xế được phân công chuyến này')
         );
       }
-      
+
+      // Kiểm tra thanh toán
+      const payment = await Payment.findOne({ booking_id: bookingId }).select('payment_status');
+      if (!payment || payment.payment_status === 'pending') {
+        return res.status(400).json(
+          ApiResponse.error('Khách chưa thanh toán, vui lòng xác nhận thanh toán trước khi hoàn thành chuyến')
+        );
+      }
+
       // Kiểm tra trạng thái
       if (booking.status !== 'in-progress') {
         return res.status(400).json(

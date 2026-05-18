@@ -184,7 +184,13 @@ export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
     setSelectedCarpoolKey('');
     setSelectedTripId('');
     setAssignMode('new');
-    setStartTime('');
+    // Auto-fill start time with booking's trip date (if available) in datetime-local format
+    const toDateTimeLocal = (dateStr: string) => {
+      const d = new Date(dateStr);
+      // Slice to get YYYY-MM-DDTHH:MM
+      return d.toISOString().slice(0, 16);
+    };
+    setStartTime(booking.trip_date ? toDateTimeLocal(booking.trip_date) : '');
     setShowAssignmentModal(true);
   };
 
@@ -211,17 +217,20 @@ export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
     }
 
     if (assignMode === 'carpool') {
-      if (!selectedCarpoolKey) {
+      let availableSeats = 0;
+      if (selectedTripId) {
+        const t = activeTrips.find(x => x.trip_id === selectedTripId);
+        availableSeats = t?.availableSeats || 0;
+      } else if (selectedCarpoolKey) {
+        const c = carpools.find((x) => `${x.driver_id}_${x.vehicle_id}` === selectedCarpoolKey);
+        availableSeats = c?.availableSeats || 0;
+      } else {
         alert('Vui lòng chọn chuyến ghép (tài xế – xe còn chỗ)');
         return;
       }
-      const c = carpools.find((x) => `${x.driver_id}_${x.vehicle_id}` === selectedCarpoolKey);
-      if (!c) {
-        alert('Không tìm thấy chuyến đã chọn. Vui lòng tải lại danh sách.');
-        return;
-      }
-      if (assigningBooking.passengers > c.availableSeats) {
-        alert(`Xe này chỉ còn ${c.availableSeats} chỗ trống, không đủ cho ${assigningBooking.passengers} khách.`);
+
+      if (assigningBooking.passengers > availableSeats) {
+        alert(`Xe này chỉ còn ${availableSeats} chỗ trống, không đủ cho ${assigningBooking.passengers} khách.`);
         return;
       }
     }
@@ -946,6 +955,7 @@ export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
                     onChange={(e) => {
                       setSelectedDriverId(e.target.value);
                       setSelectedCarpoolKey('');
+                      setSelectedTripId('');
                       setAssignMode('new');
                     }}
                     className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
@@ -985,6 +995,7 @@ export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
                     onChange={(e) => {
                       setSelectedVehicleId(e.target.value);
                       setSelectedCarpoolKey('');
+                      setSelectedTripId('');
                       setAssignMode('new');
                     }}
                     className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
@@ -1047,7 +1058,7 @@ export default function BookingsTab({ onViewBooking}: BookingsTabProps) {
                     !selectedDriverId ||
                     !selectedVehicleId ||
                     (assignMode === 'new' && getFilteredVehicles().length === 0) ||
-                    (assignMode === 'carpool' && !selectedCarpoolKey)
+                    (assignMode === 'carpool' && !selectedCarpoolKey && !selectedTripId)
                   }
                   className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >

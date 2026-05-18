@@ -88,6 +88,8 @@ export default function TripCard({
   const isAssigned = trip.booking_status === 'assigned' && trip.driver_confirm === 0;
   const isInProgress = trip.booking_status === 'in-progress';
   const isCompleted = trip.booking_status === 'completed';
+  const allPaid = Object.values(localPaymentStatuses).every(s => s !== 'pending');
+  const [showUnpaidModal, setShowUnpaidModal] = useState(false);
   const occupancyRate = (trip.total_occupancy / trip.vehicle_seats) * 100;
 
   const hasPaid = Object.values(localPaymentStatuses).some((s) => s === 'paid_cash' || s === 'paid_transfer');
@@ -378,8 +380,15 @@ export default function TripCard({
 
           {isInProgress && (
             <button 
-              onClick={onComplete}
-              className="w-full bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-4 rounded-2xl font-bold uppercase tracking-wide text-sm shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2"
+              onClick={() => {
+                if (allPaid) {
+                  onComplete();
+                } else {
+                  setShowUnpaidModal(true);
+                }
+              }}
+              disabled={!allPaid}
+              className="w-full bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-4 rounded-2xl font-bold uppercase tracking-wide text-sm shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle size={18} />
               Hoàn Thành Chuyến Đi
@@ -419,90 +428,72 @@ export default function TripCard({
           <div className="bg-white rounded-2xl max-w-md w-full p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-lg font-bold text-gray-900">Xác nhận thanh toán</h3>
-              <button
-                onClick={stopAndClosePaymentModal}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                ✕
-              </button>
+              <button onClick={stopAndClosePaymentModal} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">✕</button>
             </div>
-
             <div className="text-sm text-gray-600 mb-4">
-                  Booking hiện đang: <span className="font-bold text-gray-900">
-                    {selectedPaymentBookingId ? paymentStatusText(localPaymentStatuses[selectedPaymentBookingId]) : 'Chưa thanh toán'}
-                  </span>
+              Booking hiện đang: <span className="font-bold text-gray-900">{selectedPaymentBookingId ? paymentStatusText(localPaymentStatuses[selectedPaymentBookingId]) : 'Chưa thanh toán'}</span>
             </div>
-
             {!paymentOption && (
               <div className="space-y-2">
-                <button
-                  onClick={handleChooseCash}
-                  className="w-full px-4 py-3 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-xl text-emerald-700 font-bold"
-                >
-                  Thanh toán tiền mặt
-                </button>
-                <button
-                  onClick={handleChooseTransfer}
-                  disabled={paymentCreating}
-                  className="w-full px-4 py-3 bg-emerald-500 text-white hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl font-bold"
-                >
-                  {paymentCreating ? 'Đang tạo QR...' : 'Chuyển khoản (MoMo QR)'}
-                </button>
+                <button onClick={handleChooseCash} className="w-full px-4 py-3 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-xl text-emerald-700 font-bold">Thanh toán tiền mặt</button>
+                <button onClick={handleChooseTransfer} disabled={paymentCreating} className="w-full px-4 py-3 bg-emerald-500 text-white hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-xl font-bold">{paymentCreating ? 'Đang tạo QR...' : 'Chuyển khoản (MoMo QR)'}</button>
                 {paymentError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
-                    {paymentError}
-                  </div>
+                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">{paymentError}</div>
                 )}
               </div>
             )}
-
             {paymentOption === 'transfer' && (
               <div className="space-y-3">
-                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700">
-                  Quét QR để thanh toán. Hệ thống sẽ tự cập nhật khi thanh toán thành công.
-                </div>
-
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm text-gray-700">Quét QR để thanh toán. Hệ thống sẽ tự cập nhật khi thanh toán thành công.</div>
                 {paymentCreating ? (
-                  <div className="flex items-center justify-center py-6">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500" />
-                  </div>
-                ) : paymentQrCode || paymentPayUrl ? (
+                  <div className="flex items-center justify-center py-6"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500" /></div>
+                ) : (paymentQrCode || paymentPayUrl) ? (
                   <div className="flex flex-col items-center">
                     {paymentQrCode && (
-                      <img
-                        alt="QR MoMo"
-                        className="w-44 h-44 rounded-xl border border-gray-100 bg-gray-50"
-                        src={
-                          paymentQrCode.startsWith('http')
-                            ? paymentQrCode
-                            : `data:image/png;base64,${paymentQrCode}`
-                        }
-                      />
+                      <img alt="QR MoMo" className="w-44 h-44 rounded-xl border border-gray-100 bg-gray-50" src={paymentQrCode.startsWith('http') ? paymentQrCode : `data:image/png;base64,${paymentQrCode}`} />
                     )}
                     {paymentPayUrl && (
-                      <a
-                        href={paymentPayUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-3 text-emerald-600 hover:text-emerald-700 text-sm font-bold"
-                      >
-                        Mở trang thanh toán
-                      </a>
+                      <a href={paymentPayUrl} target="_blank" rel="noreferrer" className="mt-3 text-emerald-600 hover:text-emerald-700 text-sm font-bold">Mở trang thanh toán</a>
                     )}
                   </div>
                 ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">
-                    Không có QR để hiển thị. Vui lòng thử lại.
-                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">Không có QR để hiển thị. Vui lòng thử lại.</div>
                 )}
-
                 {paymentError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
-                    {paymentError}
-                  </div>
+                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">{paymentError}</div>
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Unpaid Customers Modal */}
+      {showUnpaidModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-900">Khách chưa thanh toán</h3>
+              <button onClick={() => setShowUnpaidModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">✕</button>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">Vui lòng thu tiền cho các khách sau trước khi hoàn thành chuyến.</p>
+            <ul className="list-disc list-inside space-y-1 text-gray-800">
+              {Object.entries(localPaymentStatuses).filter(([, st]) => st === 'pending').map(([bid]) => {
+                const cust = (trip.customers && trip.customers.length > 0 ? trip.customers : [{
+                  booking_id: trip.booking_id,
+                  customer_name: trip.customer_name || 'Khách',
+                  customer_phone: trip.customer_phone
+                }]).find(c => c.booking_id === bid);
+                return (
+                  <li key={bid}>
+                    {cust?.customer_name || 'Khách'} {cust?.customer_phone ? `(${cust.customer_phone})` : ''}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-4 flex justify-end">
+              <button onClick={() => setShowUnpaidModal(false)} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">Đã thu tiền</button>
+            </div>
           </div>
         </div>
       )}

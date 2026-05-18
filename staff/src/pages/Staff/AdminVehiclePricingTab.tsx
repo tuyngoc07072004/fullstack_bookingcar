@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getApiUrl } from '../../utils/dbUrl';
+import axios from '../../config/axios.config';
 
 interface VehiclePricingItem {
   _id: string;
@@ -18,15 +19,18 @@ export default function AdminVehiclePricingTab() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(getApiUrl('/vehicles/pricing'), {
-        headers: { Authorization: `Bearer ${token}` },
-        credentials: 'include'
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || 'Không thể tải bảng giá');
+      if (!token) {
+        setItems([]);
+        return;
+      }
+      const response = await axios.get(getApiUrl('/vehicles/pricing'));
+      const data = response.data;
+      if (!data.success) throw new Error(data.message || 'Không thể tải bảng giá');
       setItems(data.data || []);
     } catch (error: any) {
-      alert(error.message || 'Không thể tải bảng giá');
+      if (error?.response?.status !== 401) {
+        alert(error.message || 'Không thể tải bảng giá');
+      }
     } finally {
       setLoading(false);
     }
@@ -38,25 +42,20 @@ export default function AdminVehiclePricingTab() {
 
   const handleSave = async (item: VehiclePricingItem) => {
     try {
-      const response = await fetch(getApiUrl(`/vehicles/pricing/${item._id}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          base_price: Number(item.base_price),
-          price_per_km: Number(item.price_per_km),
-          is_active: item.is_active
-        })
+      if (!token) return;
+      const response = await axios.put(getApiUrl(`/vehicles/pricing/${item._id}`), {
+        base_price: Number(item.base_price),
+        price_per_km: Number(item.price_per_km),
+        is_active: item.is_active
       });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || 'Cập nhật thất bại');
+      const data = response.data;
+      if (!data.success) throw new Error(data.message || 'Cập nhật thất bại');
       alert('Cập nhật giá xe thành công');
       await loadData();
     } catch (error: any) {
-      alert(error.message || 'Cập nhật thất bại');
+      if (error?.response?.status !== 401) {
+        alert(error.message || 'Cập nhật thất bại');
+      }
     }
   };
 

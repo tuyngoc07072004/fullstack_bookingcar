@@ -29,7 +29,16 @@ axiosInstance.interceptors.response.use(
       // Token hết hạn hoặc không hợp lệ
       localStorage.removeItem('staffToken');
       localStorage.removeItem('staffInfo');
-      window.location.href = '/staff-login';
+      // Prevent double redirect / double flashing alerts across parallel requests
+      const w = window as any;
+      if (!w.__staff_auth_redirecting) {
+        w.__staff_auth_redirecting = true;
+        window.location.replace('/staff-login');
+        // reset flag after navigation settles (best-effort)
+        setTimeout(() => {
+          w.__staff_auth_redirecting = false;
+        }, 2000);
+      }
     }
     return Promise.reject(error);
   }

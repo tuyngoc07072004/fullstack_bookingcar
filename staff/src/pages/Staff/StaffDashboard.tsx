@@ -47,6 +47,7 @@ export default function StaffDashboard() {
   const [bookingToAssign, setBookingToAssign] = useState<Booking | null>(null);
 
   const hasCheckedAuth = useRef(false);
+  const hasRedirectedRef = useRef(false);
 
   // Helper: Lấy token từ Redux hoặc localStorage
   const getToken = (): string | null => {
@@ -135,6 +136,8 @@ export default function StaffDashboard() {
   };
 
   const handleLocalLogout = () => {
+    if (hasRedirectedRef.current) return;
+    hasRedirectedRef.current = true;
     localStorage.removeItem('staffToken');
     localStorage.removeItem('staffInfo');
     sessionStorage.removeItem('staffToken');

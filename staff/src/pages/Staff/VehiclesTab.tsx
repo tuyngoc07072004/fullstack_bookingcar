@@ -319,9 +319,10 @@ export default function VehiclesTab() {
     currentPage * itemsPerPage
   );
 
-  // Status badge component
-  const StatusBadge = ({ status }: { status: VehicleStatus }) => {
-    const statusConfig: Record<VehicleStatus, { label: string; color: string; icon: React.ReactElement }> = {
+  // Status badge component with safe fallback
+  const StatusBadge = ({ status }: { status?: VehicleStatus }) => {
+    // Mapping of known statuses to display config
+    const statusConfig: Record<string, { label: string; color: string; icon: React.ReactElement }> = {
       ready: {
         label: 'Chuẩn bị khởi hành',
         color: 'bg-emerald-100 text-emerald-700',
@@ -338,9 +339,13 @@ export default function VehiclesTab() {
         icon: <CheckCircle size={12} className="inline mr-1" />
       }
     };
-
-    const config = statusConfig[status];
-    
+    // Fallback config for unknown or missing status
+    const fallback = {
+      label: 'Chưa xác định',
+      color: 'bg-gray-100 text-gray-700',
+      icon: <AlertCircle size={12} className="inline mr-1" />
+    };
+    const config = status ? statusConfig[status] || fallback : fallback;
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center ${config.color}`}>
         {config.icon}

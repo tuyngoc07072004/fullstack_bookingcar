@@ -271,20 +271,12 @@ class BookingController {
 
       const booking = await Booking.findById(id)
         .populate('vehicleType')
-        .populate('tripAssignment')
         .populate({
           path: 'tripAssignment',
-          populate: {
-            path: 'driver',
-            select: 'name phone'
-          }
-        })
-        .populate({
-          path: 'tripAssignment',
-          populate: {
-            path: 'vehicle',
-            select: 'vehicle_name license_plate'
-          }
+          populate: [
+            { path: 'driver_id', select: 'name phone' },
+            { path: 'vehicle_id', select: 'vehicle_name license_plate' }
+          ]
         });
 
       if (!booking) {
@@ -293,8 +285,18 @@ class BookingController {
         );
       }
 
+      const bookingObj = booking.toObject({ virtuals: true });
+      if (booking.tripAssignment) {
+        const assignment = booking.tripAssignment;
+        bookingObj.tripAssignment = {
+          ...assignment,
+          driver: assignment.driver_id,
+          vehicle: assignment.vehicle_id
+        };
+      }
+
       return res.status(200).json(
-        ApiResponse.success(booking, 'Lấy thông tin đơn đặt xe thành công')
+        ApiResponse.success(bookingObj, 'Lấy thông tin đơn đặt xe thành công')
       );
 
     } catch (error) {
@@ -314,14 +316,29 @@ class BookingController {
         .populate({
           path: 'tripAssignment',
           populate: [
-            { path: 'driver', select: 'name phone' },
-            { path: 'vehicle', select: 'vehicle_name license_plate' }
+            { path: 'driver_id', select: 'name phone' },
+            { path: 'vehicle_id', select: 'vehicle_name license_plate' }
           ]
         })
         .sort({ created_at: -1 });
 
+      const enrichedBookings = bookings.map(booking => {
+        const bookingObj = booking.toObject({ virtuals: true });
+
+        if (booking.tripAssignment) {
+          const assignment = booking.tripAssignment;
+          bookingObj.tripAssignment = {
+            ...assignment,
+            driver: assignment.driver_id,
+            vehicle: assignment.vehicle_id
+          };
+        }
+
+        return bookingObj;
+      });
+
       return res.status(200).json(
-        ApiResponse.success(bookings, 'Lấy danh sách đơn đặt xe thành công')
+        ApiResponse.success(enrichedBookings, 'Lấy danh sách đơn đặt xe thành công')
       );
 
     } catch (error) {
@@ -384,8 +401,8 @@ class BookingController {
         .populate({
           path: 'tripAssignment',
           populate: [
-            { path: 'driver', select: 'name phone' },
-            { path: 'vehicle', select: 'vehicle_name license_plate' }
+            { path: 'driver_id', select: 'name phone' },
+            { path: 'vehicle_id', select: 'vehicle_name license_plate' }
           ]
         });
 
@@ -400,6 +417,14 @@ class BookingController {
         return res.status(403).json(
           ApiResponse.error('Số điện thoại không khớp với đơn đặt xe')
         );
+      }
+
+      const bookingObj = booking.toObject({ virtuals: true });
+      if (booking.tripAssignment && booking.tripAssignment.driver_id) {
+        bookingObj.tripAssignment.driver = booking.tripAssignment.driver_id;
+      }
+      if (booking.tripAssignment && booking.tripAssignment.vehicle_id) {
+        bookingObj.tripAssignment.vehicle = booking.tripAssignment.vehicle_id;
       }
 
       // Prepare response data
@@ -418,13 +443,13 @@ class BookingController {
         vehicle_type: booking.vehicleType?.type_name,
         price: booking.price,
         payment_method: booking.payment_method_text,
-        driver: booking.tripAssignment?.driver ? {
-          name: booking.tripAssignment.driver.name,
-          phone: booking.tripAssignment.driver.phone
+        driver: booking.tripAssignment?.driver_id ? {
+          name: booking.tripAssignment.driver_id.name,
+          phone: booking.tripAssignment.driver_id.phone
         } : null,
-        vehicle: booking.tripAssignment?.vehicle ? {
-          name: booking.tripAssignment.vehicle.vehicle_name,
-          license_plate: booking.tripAssignment.vehicle.license_plate
+        vehicle: booking.tripAssignment?.vehicle_id ? {
+          name: booking.tripAssignment.vehicle_id.vehicle_name,
+          license_plate: booking.tripAssignment.vehicle_id.license_plate
         } : null
       };
 

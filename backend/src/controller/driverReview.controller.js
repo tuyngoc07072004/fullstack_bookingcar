@@ -1,6 +1,7 @@
 const DriverReview = require('../models/DriverReview.models');
 const Booking = require('../models/Booking.models');
 const TripAssignment = require('../models/TripAssignment.models');
+const Trip = require('../models/Trip.models');
 const ApiResponse = require('../models/ApiResponse.models');
 
 class DriverReviewController {
@@ -8,13 +9,82 @@ class DriverReviewController {
     this.createReview = this.createReview.bind(this);
     this.getReviewByBooking = this.getReviewByBooking.bind(this);
     this.getDriverReviews = this.getDriverReviews.bind(this);
+    this.canReview = this.canReview.bind(this);
+    this._hasDriverAssignment = this._hasDriverAssignment.bind(this);
+  }
+
+  /**
+   * Helper: Kiểm tra booking có driver assignment không
+   */
+  async _hasDriverAssignment(bookingId) {
+    // Try TripAssignment first
+    const assignment = await TripAssignment.findOne({ booking_id: bookingId })
+      .populate('driver_id', 'name');
+    
+    if (assignment && assignment.driver_id) {
+      return { hasDriver: true, driverId: assignment.driver_id._id, driver: assignment.driver_id };
+    }
+    
+    // Fallback: Try Trip
+    const booking = await Booking.findById(bookingId).populate({
+      path: 'trip_id',
+      populate: { path: 'driver_id', select: 'name phone' }
+    });
+    
+    if (booking && booking.trip_id && booking.trip_id.driver_id) {
+      return { 
+        hasDriver: true, 
+        driverId: booking.trip_id.driver_id._id, 
+        driver: booking.trip_id.driver_id,
+        source: 'trip'
+      };
+    }
+    
+    return { hasDriver: false, driverId: null, driver: null };
+  }
+
+  /**
+   * Kiểm tra xem booking có thể đánh giá được không
+   * GET /api/reviews/can-review/:bookingId
+   */
+  async canReview(req, res) {
+    try {
+      const { bookingId } = req.params;
+
+      const booking = await Booking.findById(bookingId);
+      if (!booking) {
+        return res.status(404).json(
+          ApiResponse.error('Không tìm thấy chuyến đi')
+        );
+      }
+
+      const isCompleted = booking.status === 'completed';
+      const existingReview = await DriverReview.findOne({ booking_id: bookingId });
+      const { hasDriver } = await this._hasDriverAssignment(bookingId);
+
+      return res.status(200).json(
+        ApiResponse.success({
+          canReview: isCompleted && !existingReview && hasDriver,
+          isCompleted,
+          hasReviewed: !!existingReview,
+          hasDriver,
+          bookingStatus: booking.status,
+          bookingStatusText: booking.status_text
+        }, 'Kiểm tra khả năng đánh giá thành công')
+      );
+
+    } catch (error) {
+      console.error('❌ Lỗi kiểm tra đánh giá:', error);
+      return res.status(500).json(
+        ApiResponse.error('Lỗi server khi kiểm tra đánh giá', error.message)
+      );
+    }
   }
 
   /**
    * Tạo đánh giá mới
    * POST /api/reviews
    * Body: { bookingId, rating, comment }
-   * Không cần auth – khách tra cứu bằng SĐT
    */
   async createReview(req, res) {
     try {
@@ -43,7 +113,7 @@ class DriverReviewController {
 
       if (booking.status !== 'completed') {
         return res.status(400).json(
-          ApiResponse.error('Chỉ có thể đánh giá các chuyến đã hoàn thành')
+          ApiResponse.error(`Chỉ có thể đánh giá các chuyến đã hoàn thành. Trạng thái hiện tại: ${booking.status_text}`)
         );
       }
 
@@ -55,28 +125,39 @@ class DriverReviewController {
         );
       }
 
-      // Lấy thông tin tài xế từ TripAssignment
-      const assignment = await TripAssignment.findOne({ booking_id: bookingId })
-        .populate('driver_id', 'name');
-
-      if (!assignment || !assignment.driver_id) {
+      // Lấy thông tin tài xế - với fallback
+      const driverInfo = await this._hasDriverAssignment(bookingId);
+      
+      if (!driverInfo.hasDriver || !driverInfo.driverId) {
         return res.status(400).json(
-          ApiResponse.error('Không tìm thấy thông tin tài xế cho chuyến này')
+          ApiResponse.error(
+            'Không tìm thấy thông tin tài xế cho chuyến này. ' +
+            'Vui lòng liên hệ bộ phận hỗ trợ để được giúp đỡ.'
+          )
         );
       }
 
+      console.log(`✅ Found driver for booking ${bookingId}:`, {
+        driverId: driverInfo.driverId,
+        source: driverInfo.source || 'trip_assignment',
+        driverName: driverInfo.driver?.name
+      });
+
       const review = await DriverReview.create({
         booking_id: bookingId,
-        driver_id: assignment.driver_id._id,
+        driver_id: driverInfo.driverId,
         customer_id: booking.customer_id || null,
         customer_name: booking.customer_name,
         rating: ratingNum,
         comment: comment?.trim() || null
       });
 
+      console.log(`✅ Review created for booking ${bookingId}, driver ${driverInfo.driverId}, rating ${ratingNum}`);
+
       return res.status(201).json(
-        ApiResponse.success(review, 'Đánh giá tài xế thành công')
+        ApiResponse.success(review, 'Đánh giá tài xế thành công! Cảm ơn bạn đã phản hồi.')
       );
+
     } catch (error) {
       if (error.code === 11000) {
         return res.status(409).json(

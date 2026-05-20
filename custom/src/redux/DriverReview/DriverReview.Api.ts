@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getApiUrl } from '../../utils/dbUrl';
-import { DriverReview, CreateReviewPayload, DriverReviewsResponse } from '../../types/DriverReview.types';
+import { DriverReview, CreateReviewPayload, DriverReviewsResponse, CanReviewResponse } from '../../types/DriverReview.types';
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -13,7 +13,6 @@ const apiClient = axios.create({
   baseURL: getApiUrl(''),
   timeout: 10000,
 });
-
 
 export const createReview = async (payload: CreateReviewPayload): Promise<DriverReview> => {
   const response = await apiClient.post<ApiResponse<DriverReview>>('/reviews', {
@@ -32,8 +31,16 @@ export const getReviewByBooking = async (bookingId: string): Promise<DriverRevie
   return response.data.data ?? null;
 };
 
-
 export const getDriverReviews = async (driverId: string): Promise<DriverReviewsResponse> => {
   const response = await apiClient.get<ApiResponse<DriverReviewsResponse>>(`/reviews/driver/${driverId}`);
   return response.data.data ?? { reviews: [], total: 0, avgRating: 0 };
+};
+
+// NEW: Kiểm tra xem booking có thể đánh giá không
+export const checkCanReview = async (bookingId: string): Promise<CanReviewResponse> => {
+  const response = await apiClient.get<ApiResponse<CanReviewResponse>>(`/reviews/can-review/${bookingId}`);
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.message || 'Không thể kiểm tra trạng thái đánh giá');
+  }
+  return response.data.data;
 };

@@ -55,7 +55,8 @@ class PaymentController {
         // Đồng bộ trạng thái booking theo workflow mới
         const booking = await Booking.findById(bookingId).select('status');
         if (booking && booking.status === 'awaiting_payment') {
-          booking.status = 'paid';
+          // After successful MoMo payment, mark as completed so user can review
+          booking.status = 'completed';
           await booking.save();
         }
       }

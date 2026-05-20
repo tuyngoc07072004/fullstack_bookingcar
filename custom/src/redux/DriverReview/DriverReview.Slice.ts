@@ -1,9 +1,10 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { DriverReviewState, CreateReviewPayload } from '../../types/DriverReview.types';
+import { DriverReviewState, CreateReviewPayload, CanReviewResponse } from '../../types/DriverReview.types';
 import * as reviewApi from './DriverReview.Api';
 
 const initialState: DriverReviewState = {
   reviewsByBooking: {},
+  canReviewStatus: {},
   submitting: false,
   loading: false,
   error: null,
@@ -38,12 +39,27 @@ export const fetchReviewByBooking = createAsyncThunk(
   }
 );
 
+// NEW: Kiểm tra xem có thể đánh giá không
+export const fetchCanReview = createAsyncThunk(
+  'driverReview/fetchCanReview',
+  async (bookingId: string, { rejectWithValue }) => {
+    try {
+      const result = await reviewApi.checkCanReview(bookingId);
+      return { bookingId, result };
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Lỗi khi kiểm tra đánh giá');
+    }
+  }
+);
+
 // Submit review mới
 export const submitReview = createAsyncThunk(
   'driverReview/submit',
-  async (payload: CreateReviewPayload, { rejectWithValue }) => {
+  async (payload: CreateReviewPayload, { rejectWithValue, dispatch }) => {
     try {
       const review = await reviewApi.createReview(payload);
+      // After successful submit, refresh canReview status
+      await dispatch(fetchCanReview(payload.bookingId));
       return { bookingId: payload.bookingId, review };
     } catch (error: any) {
       return rejectWithValue(error.message || 'Lỗi khi gửi đánh giá');
@@ -57,6 +73,10 @@ const driverReviewSlice = createSlice({
   reducers: {
     clearReviewError: (state) => {
       state.error = null;
+    },
+    clearCanReviewStatus: (state, action) => {
+      const { bookingId } = action.payload;
+      delete state.canReviewStatus[bookingId];
     }
   },
   extraReducers: (builder) => {
@@ -66,11 +86,24 @@ const driverReviewSlice = createSlice({
     });
     builder.addCase(fetchReviewByBooking.fulfilled, (state, action) => {
       state.loading = false;
-      state.reviewsByBooking[action.payload.bookingId] = action.payload.review; // null nếu chưa có
+      state.reviewsByBooking[action.payload.bookingId] = action.payload.review;
     });
     builder.addCase(fetchReviewByBooking.rejected, (state, action) => {
       state.loading = false;
-      // Không throw error lên UI nếu chỉ là check chưa đánh giá, nhưng log lại
+      console.error('fetchReviewByBooking rejected:', action.payload);
+    });
+
+    // fetchCanReview
+    builder.addCase(fetchCanReview.pending, (state) => {
+      state.loading = true;
+    });
+    builder.addCase(fetchCanReview.fulfilled, (state, action) => {
+      state.loading = false;
+      state.canReviewStatus[action.payload.bookingId] = action.payload.result;
+    });
+    builder.addCase(fetchCanReview.rejected, (state, action) => {
+      state.loading = false;
+      console.error('fetchCanReview rejected:', action.payload);
     });
 
     // submitReview
@@ -101,10 +134,10 @@ const driverReviewSlice = createSlice({
     });
     builder.addCase(fetchDriverReviews.rejected, (state, action) => {
       state.loadingDriverReviews = false;
-      // Log lỗi
+      console.error('fetchDriverReviews rejected:', action.payload);
     });
   }
 });
 
-export const { clearReviewError } = driverReviewSlice.actions;
+export const { clearReviewError, clearCanReviewStatus } = driverReviewSlice.actions;
 export default driverReviewSlice.reducer;

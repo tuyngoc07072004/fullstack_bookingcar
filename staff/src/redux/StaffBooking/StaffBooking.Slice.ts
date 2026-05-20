@@ -71,7 +71,6 @@ const createTripAssignment = (assignment: any): TripAssignment | undefined => {
 
 // Helper để ép kiểu status - FIXED: Use as const assertion
 const toBookingStatus = (status: string): BookingStatus => {
-  // Validate that status is a valid BookingStatus
   const validStatuses: BookingStatus[] = [
     'pending',
     'confirmed',
@@ -224,7 +223,6 @@ export const updateBookingStatus = createAsyncThunk(
   }
 );
 
-// ✅ FIXED: Required parameter cannot follow optional parameter
 export const fetchAvailableVehicles = createAsyncThunk(
   'staffBooking/fetchAvailableVehicles',
   async (seats: number | undefined, { rejectWithValue }: any) => {
@@ -303,7 +301,37 @@ const staffBookingSlice = createSlice({
       if (index !== -1) {
         state.bookings[index] = { ...state.bookings[index], ...updates };
       }
-    }
+    },
+
+    // ✅ Thêm action mới để cập nhật trạng thái thanh toán của booking
+    updateBookingPaymentStatus: (state, action: PayloadAction<{ 
+      bookingId: string; 
+      payment_status: 'pending' | 'paid_cash' | 'paid_transfer' 
+    }>) => {
+      const { bookingId, payment_status } = action.payload;
+      
+      // Cập nhật trong danh sách bookings
+      const index = state.bookings.findIndex(b => b._id === bookingId);
+      if (index !== -1) {
+        state.bookings[index].payment_status = payment_status;
+        // Cập nhật cả payment_status_text nếu có
+        if (payment_status === 'paid_cash') {
+          (state.bookings[index] as any).payment_status_text = 'Đã thanh toán tiền mặt';
+        } else if (payment_status === 'paid_transfer') {
+          (state.bookings[index] as any).payment_status_text = 'Đã thanh toán chuyển khoản';
+        }
+      }
+      
+      // Cập nhật current booking nếu đang mở
+      if (state.currentBooking?._id === bookingId) {
+        state.currentBooking.payment_status = payment_status;
+      }
+      
+      // Cập nhật trong booking details nếu có
+      if (state.bookingDetails?.booking._id === bookingId) {
+        state.bookingDetails.booking.payment_status = payment_status;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -358,7 +386,6 @@ const staffBookingSlice = createSlice({
       .addCase(fetchBookingDetailsForStaff.fulfilled, (state, action) => {
         state.loading = false;
         state.bookingDetails = action.payload;
-        // Also set available vehicles and drivers
         if (action.payload.availableVehicles) {
           state.availableVehicles = action.payload.availableVehicles;
         }
@@ -382,7 +409,6 @@ const staffBookingSlice = createSlice({
         const { bookingId, data } = action.payload;
         const status = toBookingStatus(data.status);
         
-        // Update booking in list
         const index = state.bookings.findIndex(b => b._id === bookingId);
         if (index !== -1) {
           state.bookings[index] = {
@@ -392,7 +418,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update current booking if it's the same
         if (state.currentBooking?._id === bookingId) {
           state.currentBooking = {
             ...state.currentBooking,
@@ -401,7 +426,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update booking details if it's the same
         if (state.bookingDetails?.booking._id === bookingId) {
           state.bookingDetails.booking = {
             ...state.bookingDetails.booking,
@@ -428,7 +452,6 @@ const staffBookingSlice = createSlice({
         const status = toBookingStatus(data.booking.status);
         const tripAssignment = createTripAssignment(data.assignment);
         
-        // Update booking in list
         const index = state.bookings.findIndex(b => b._id === bookingId);
         if (index !== -1) {
           state.bookings[index] = {
@@ -439,7 +462,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update current booking if it's the same
         if (state.currentBooking?._id === bookingId) {
           state.currentBooking = {
             ...state.currentBooking,
@@ -449,7 +471,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update booking details if it's the same
         if (state.bookingDetails?.booking._id === bookingId) {
           state.bookingDetails.booking = {
             ...state.bookingDetails.booking,
@@ -460,7 +481,6 @@ const staffBookingSlice = createSlice({
           state.bookingDetails.canAssign = false;
         }
         
-        // Remove assigned driver and vehicle from available lists
         if (data.assignment.driver) {
           state.availableDrivers = state.availableDrivers.filter(
             d => d._id !== data.assignment.driver._id
@@ -534,7 +554,6 @@ const staffBookingSlice = createSlice({
         const { bookingId, data } = action.payload;
         const status = toBookingStatus(data.status);
         
-        // Update booking in list
         const index = state.bookings.findIndex(b => b._id === bookingId);
         if (index !== -1) {
           state.bookings[index] = {
@@ -544,7 +563,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update current booking if it's the same
         if (state.currentBooking?._id === bookingId) {
           state.currentBooking = {
             ...state.currentBooking,
@@ -553,7 +571,6 @@ const staffBookingSlice = createSlice({
           };
         }
         
-        // Update booking details if it's the same
         if (state.bookingDetails?.booking._id === bookingId) {
           state.bookingDetails.booking = {
             ...state.bookingDetails.booking,
@@ -605,7 +622,8 @@ export const {
   resetFilters,
   setPagination,
   clearError,
-  updateBookingInList
+  updateBookingInList,
+  updateBookingPaymentStatus, // ✅ Export action mới
 } = staffBookingSlice.actions;
 
 export default staffBookingSlice.reducer;

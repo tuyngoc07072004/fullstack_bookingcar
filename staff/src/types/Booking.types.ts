@@ -1,3 +1,4 @@
+// Booking.types.ts
 export interface BookingCustomer {
   name: string;
   phone: string;
@@ -28,11 +29,22 @@ export interface CreateBookingRequest {
   booking: BookingData;
 }
 
+// ✅ Sửa lại BookingStatus để đồng bộ với StaffBooking.types.ts
+export type BookingStatus = 
+  | 'pending' 
+  | 'confirmed' 
+  | 'assigned' 
+  | 'in-progress' 
+  | 'awaiting_payment' 
+  | 'paid' 
+  | 'completed' 
+  | 'cancelled';
+
 export interface Booking {
   _id: string;
   customer_name: string;
   customer_phone: string;
-  customer_email?: string | null; // FIXED: Allow null
+  customer_email?: string | null;
   customer_id?: string;
   pickup_location: string;
   dropoff_location: string;
@@ -55,7 +67,7 @@ export interface Booking {
   payment_method_text?: string;
   payment_status?: 'pending' | 'paid_cash' | 'paid_transfer';
   paid_at?: string | null;
-  status: 'pending' | 'confirmed' | 'assigned' | 'in-progress' | 'completed' | 'cancelled';
+  status: BookingStatus;  // ✅ Sử dụng type mới
   status_text?: string;
   low_occupancy_reason?: string;
   notes?: string;
@@ -79,9 +91,9 @@ export interface Booking {
   };
 }
 
-export interface BookingStatus {
+export interface BookingStatusInfo {
   id: string;
-  status: string;
+  status: BookingStatus;  // ✅ Sử dụng type mới
   status_text: string;
   customer_name: string;
   customer_phone: string;
@@ -129,7 +141,7 @@ export interface CancelBookingRequest {
 export interface BookingState {
   currentBooking: Booking | null;
   bookings: Booking[];
-  bookingStatus: BookingStatus | null;
+  bookingStatus: BookingStatusInfo | null;
   priceCalculation: PriceCalculationResponse | null;
   loading: boolean;
   error: string | null;

@@ -3,6 +3,7 @@ import { X, User, Car, CalendarClock, UserCircle } from 'lucide-react';
 import { StatusBadge } from './Common';
 import { useAppDispatch } from '../redux/store';
 import { confirmCashPayment } from '../redux/Payment/Payment.Slice';
+import { fetchBookings } from '../redux/StaffBooking/StaffBooking.Slice'; // ✅ Thêm import này
 
 function safeDateLabel(value: unknown): string | null {
   if (value == null || value === '') return null;
@@ -53,6 +54,10 @@ export function ViewBookingModal({ booking, onClose }: any) {
     setConfirmingCash(true);
     try {
       await dispatch(confirmCashPayment(booking._id)).unwrap();
+      
+      // ✅ Thêm dòng này: Refresh lại danh sách bookings để cập nhật trạng thái thanh toán
+      await dispatch(fetchBookings({}));
+      
       onClose();
     } catch (e: any) {
       alert(e?.message || 'Xác nhận thanh toán thất bại');

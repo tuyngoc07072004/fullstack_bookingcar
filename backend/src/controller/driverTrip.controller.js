@@ -412,9 +412,9 @@ class DriverTripController {
       // Cập nhật
       assignment.end_time = new Date();
       await assignment.save();
-      
-      // Kết thúc di chuyển => chờ thanh toán (theo workflow mới)
-      booking.status = 'awaiting_payment';
+
+      // Kết thúc di chuyển - set thành completed để người dùng có thể đánh giá
+      booking.status = 'completed';
       await booking.save();
       
       // Cập nhật thống kê khách hàng
@@ -451,7 +451,7 @@ class DriverTripController {
           assignmentId: assignment._id,
           status: booking.status,
           status_text: booking.status_text
-        }, 'Kết thúc di chuyển thành công, chuyển sang chờ thanh toán')
+        }, 'Chuyến đi hoàn thành! Khách hàng có thể đánh giá ngay.')
       );
       
     } catch (error) {

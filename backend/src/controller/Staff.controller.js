@@ -96,12 +96,13 @@ const registerStaff = async (req, res) => {
 
     await newStaff.save();
     
+    // Thêm role='staff' vào token
     const token = jwt.sign(
       { 
         id: newStaff._id, 
         username: newStaff.username,
         email: newStaff.email,
-        role: newStaff.role
+        role: 'staff'  // QUAN TRỌNG: Thêm role
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -120,7 +121,7 @@ const registerStaff = async (req, res) => {
       phone: newStaff.phone,
       email: newStaff.email,
       username: newStaff.username,
-      role: newStaff.role
+      role: 'staff'
     });
     
     res.status(201).json({
@@ -132,7 +133,7 @@ const registerStaff = async (req, res) => {
         phone: newStaff.phone,
         email: newStaff.email,
         username: newStaff.username,
-        role: newStaff.role,
+        role: 'staff',
         token
       }
     });
@@ -201,12 +202,13 @@ const loginStaff = async (req, res) => {
       });
     }
 
+    // Thêm role='staff' vào token
     const token = jwt.sign(
       { 
         id: staff._id, 
         username: staff.username,
         email: staff.email,
-        role: staff.role
+        role: 'staff'  // QUAN TRỌNG: Thêm role
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -224,7 +226,7 @@ const loginStaff = async (req, res) => {
       name: staff.name,
       username: staff.username,
       email: staff.email,
-      role: staff.role
+      role: 'staff'
     });
 
     res.status(200).json({
@@ -236,7 +238,7 @@ const loginStaff = async (req, res) => {
         phone: staff.phone,
         email: staff.email,
         username: staff.username,
-        role: staff.role,
+        role: 'staff',
         token
       }
     });
@@ -280,7 +282,8 @@ const getCurrentStaff = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        ...staff.toObject()
+        ...staff.toObject(),
+        role: 'staff'
       }
     });
   } catch (error) {
@@ -360,7 +363,8 @@ const updateStaffProfile = async (req, res) => {
       success: true,
       message: 'Cập nhật thông tin thành công',
       data: {
-        ...updatedStaff.toObject()
+        ...updatedStaff.toObject(),
+        role: 'staff'
       }
     });
   } catch (error) {
@@ -368,161 +372,6 @@ const updateStaffProfile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi server khi cập nhật thông tin'
-    });
-  }
-};
-
-const getStaffAccounts = async (req, res) => {
-  try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chỉ admin mới có quyền xem danh sách tài khoản staff'
-      });
-    }
-
-    const accounts = await Staff.find().select('-password').sort({ created_at: -1 });
-    res.status(200).json({
-      success: true,
-      data: accounts
-    });
-  } catch (error) {
-    console.error('❌ Lỗi lấy danh sách staff:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi lấy danh sách staff'
-    });
-  }
-};
-
-const updateStaffAccountRole = async (req, res) => {
-  try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chỉ admin mới có quyền cập nhật role'
-      });
-    }
-
-    const { id } = req.params;
-    const { role } = req.body;
-
-    if (!['staff', 'admin'].includes(role)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Role không hợp lệ'
-      });
-    }
-
-    const updated = await Staff.findByIdAndUpdate(
-      id,
-      { role, updated_at: new Date() },
-      { new: true, runValidators: true }
-    ).select('-password');
-
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy tài khoản staff'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Cập nhật role thành công',
-      data: updated
-    });
-  } catch (error) {
-    console.error('❌ Lỗi cập nhật role staff:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi cập nhật role staff'
-    });
-  }
-};
-
-const updateStaffAccountStatus = async (req, res) => {
-  try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chỉ admin mới có quyền cập nhật trạng thái'
-      });
-    }
-
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!['active', 'inactive'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Trạng thái không hợp lệ'
-      });
-    }
-
-    const updated = await Staff.findByIdAndUpdate(
-      id,
-      { status, updated_at: new Date() },
-      { new: true, runValidators: true }
-    ).select('-password');
-
-    if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy tài khoản staff'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Cập nhật trạng thái thành công',
-      data: updated
-    });
-  } catch (error) {
-    console.error('❌ Lỗi cập nhật trạng thái staff:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi cập nhật trạng thái staff'
-    });
-  }
-};
-
-const deleteStaffAccount = async (req, res) => {
-  try {
-    if (req.userRole !== 'admin') {
-      return res.status(403).json({
-        success: false,
-        message: 'Chỉ admin mới có quyền xóa tài khoản staff'
-      });
-    }
-
-    const { id } = req.params;
-
-    if (String(req.staffId) === String(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Không thể xóa chính tài khoản admin đang đăng nhập'
-      });
-    }
-
-    const deleted = await Staff.findByIdAndDelete(id).select('_id name username');
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: 'Không tìm thấy tài khoản staff'
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Đã xóa tài khoản staff ${deleted.name || deleted.username || ''}`.trim(),
-      data: deleted
-    });
-  } catch (error) {
-    console.error('❌ Lỗi xóa tài khoản staff:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Lỗi server khi xóa tài khoản staff'
     });
   }
 };
@@ -727,10 +576,6 @@ module.exports = {
   logoutStaff,
   getCurrentStaff,
   updateStaffProfile,
-  getStaffAccounts,
-  updateStaffAccountRole,
-  updateStaffAccountStatus,
-  deleteStaffAccount,
   requestPasswordChange,
   verifyStaffOtp,
   changeStaffPassword,

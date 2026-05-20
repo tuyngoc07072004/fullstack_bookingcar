@@ -2,9 +2,10 @@ const nodemailer = require('nodemailer');
 
 class EmailService {
   static transporter = null;
+  static isInitialized = false;
 
-  static initializeTransporter() {
-    if (this.transporter) return this.transporter;
+  static async initializeTransporter() {
+    if (this.isInitialized && this.transporter) return this.transporter;
 
     // Configure based on environment
     if (process.env.EMAIL_SERVICE === 'gmail') {
@@ -15,6 +16,7 @@ class EmailService {
           pass: process.env.GMAIL_PASSWORD
         }
       });
+      console.log('✅ Gmail transporter initialized');
     } else if (process.env.EMAIL_SERVICE === 'brevo') {
       this.transporter = nodemailer.createTransport({
         host: 'smtp-relay.brevo.com',
@@ -24,10 +26,12 @@ class EmailService {
           pass: process.env.BREVO_PASSWORD
         }
       });
+      console.log('✅ Brevo transporter initialized');
     } else {
-      // Default: use development mode
-      this.transporter = nodemailer.createTestAccount().then(testAccount => {
-        return nodemailer.createTransport({
+      // Default: use development mode with Ethereal (test email)
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        this.transporter = nodemailer.createTransport({
           host: 'smtp.ethereal.email',
           port: 587,
           secure: false,
@@ -36,9 +40,16 @@ class EmailService {
             pass: testAccount.pass
           }
         });
-      });
+        console.log('✅ Ethereal test account transporter initialized');
+        console.log('📧 Ethereal user:', testAccount.user);
+        console.log('📧 View emails at: https://ethereal.email');
+      } catch (err) {
+        console.error('❌ Failed to create test account:', err);
+        throw err;
+      }
     }
 
+    this.isInitialized = true;
     return this.transporter;
   }
 
@@ -75,22 +86,43 @@ class EmailService {
 
       const info = await transporter.sendMail(mailOptions);
       console.log('✅ OTP email sent:', info.messageId);
+
+      if (process.env.NODE_ENV !== 'production' && info.response) {
+        console.log('📧 Preview URL:', nodemailer.getTestMessageUrl(info));
+      }
+
       return { success: true, messageId: info.messageId };
     } catch (error) {
       console.error('❌ Error sending OTP email:', error);
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 
   static async sendOtpSms(phone, otp) {
     try {
       // TODO: Integrate with SMS service (Twilio, AWS SNS, etc.)
-      // For now, just log it
-      console.log(`📱 SMS would be sent to ${phone} with OTP: ${otp}`);
-      return { success: true, message: 'SMS sent successfully' };
+      // For development, log and simulate success
+      console.log(`📱 [DEV MODE] SMS would be sent to ${phone}`);
+      console.log(`📱 [DEV MODE] OTP Code: ${otp}`);
+      console.log(`📱 [DEV MODE] Replace with real SMS service in production`);
+
+      // In production, you should integrate with Twilio, AWS SNS, Nexmo, etc.
+      // Example with Twilio:
+      // const client = require('twilio')(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      // await client.messages.create({
+      //   body: `Your OTP code: ${otp}`,
+      //   from: process.env.TWILIO_PHONE_NUMBER,
+      //   to: phone
+      // });
+
+      return {
+        success: true,
+        message: 'SMS sent successfully (dev mode)',
+        otp: process.env.NODE_ENV === 'development' ? otp : undefined
+      };
     } catch (error) {
       console.error('❌ Error sending OTP SMS:', error);
-      return { success: false, message: error.message };
+      throw error;
     }
   }
 }

@@ -5,6 +5,9 @@ const driverReviewController = require('../controller/driverReview.controller');
 // POST /api/reviews – tạo đánh giá (không cần auth)
 router.post('/', driverReviewController.createReview);
 
+// GET /api/reviews/can-review/:bookingId – kiểm tra có thể đánh giá không
+router.get('/can-review/:bookingId', driverReviewController.canReview);
+
 // GET /api/reviews/booking/:bookingId – kiểm tra đã đánh giá chưa
 router.get('/booking/:bookingId', driverReviewController.getReviewByBooking);
 

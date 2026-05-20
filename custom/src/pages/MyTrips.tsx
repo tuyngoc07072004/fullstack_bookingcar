@@ -1,13 +1,17 @@
-import {  useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Car, Clock, Search, 
   Ticket, ArrowLeft, Navigation, Phone,
   CheckCircle2, AlertCircle, History, Loader, Star, Send
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../redux/store';
-import { fetchReviewByBooking, submitReview } from '../redux/DriverReview/DriverReview.Slice';
+import { 
+  fetchReviewByBooking, 
+  submitReview,
+  fetchCanReview 
+} from '../redux/DriverReview/DriverReview.Slice';
 import { Link } from 'react-router-dom';
-
+import { getApiUrl } from '../utils/dbUrl';
 import { Booking } from '../types/Booking.types';
 
 export default function MyTrips() {
@@ -19,17 +23,66 @@ export default function MyTrips() {
   const [cancelReasons, setCancelReasons] = useState<Record<string, string>>({});
   const [cancelLoading, setCancelLoading] = useState<Record<string, boolean>>({});
   const dispatch = useAppDispatch();
-  const { reviewsByBooking, submitting } = useAppSelector((state) => state.driverReview);
+  const { reviewsByBooking, canReviewStatus, submitting } = useAppSelector((state) => state.driverReview);
 
   // Form state cho mỗi booking riêng biệt
   const [reviewForm, setReviewForm] = useState<Record<string, { rating: number, comment: string }>>({});
 
+  // Helper: Normalize status từ backend
+  const normalizeStatus = (status: string): string => {
+    const statusMap: Record<string, string> = {
+      'completed': 'completed',
+      'complete': 'completed',
+      'COMPLETED': 'completed',
+      'Complete': 'completed',
+      'pending': 'pending',
+      'PENDING': 'pending',
+      'confirmed': 'confirmed',
+      'CONFIRMED': 'confirmed',
+      'assigned': 'assigned',
+      'ASSIGNED': 'assigned',
+      'in-progress': 'in-progress',
+      'in_progress': 'in-progress',
+      'IN_PROGRESS': 'in-progress',
+      'cancelled': 'cancelled',
+      'CANCELLED': 'cancelled',
+    };
+    return statusMap[status?.toLowerCase()] || status;
+  };
+
+  // Fetch review và canReview status cho tất cả các chuyến đã hoàn thành
+  useEffect(() => {
+    if (trips.length > 0) {
+      trips.forEach(trip => {
+        const normalized = normalizeStatus(trip.status);
+        if (normalized === 'completed') {
+          // Fetch review if not already fetched
+          if (reviewsByBooking[trip._id] === undefined) {
+            console.log('🔍 Fetching review for completed trip:', trip._id);
+            dispatch(fetchReviewByBooking(trip._id));
+          }
+          // Fetch canReview status if not already fetched
+          if (canReviewStatus[trip._id] === undefined) {
+            console.log('🔍 Fetching canReview status for trip:', trip._id);
+            dispatch(fetchCanReview(trip._id));
+          }
+        }
+      });
+    }
+  }, [trips, dispatch, reviewsByBooking, canReviewStatus]);
+
   const handleRatingChange = (bookingId: string, rating: number) => {
-    setReviewForm(prev => ({ ...prev, [bookingId]: { ...prev[bookingId], rating, comment: prev[bookingId]?.comment || '' } }));
+    setReviewForm(prev => ({ 
+      ...prev, 
+      [bookingId]: { ...prev[bookingId], rating, comment: prev[bookingId]?.comment || '' } 
+    }));
   };
 
   const handleCommentChange = (bookingId: string, comment: string) => {
-    setReviewForm(prev => ({ ...prev, [bookingId]: { ...prev[bookingId], rating: prev[bookingId]?.rating || 0, comment } }));
+    setReviewForm(prev => ({ 
+      ...prev, 
+      [bookingId]: { ...prev[bookingId], rating: prev[bookingId]?.rating || 0, comment } 
+    }));
   };
 
   const handleSubmitReview = async (bookingId: string) => {
@@ -41,8 +94,14 @@ export default function MyTrips() {
     try {
       await dispatch(submitReview({ bookingId, rating: form.rating, comment: form.comment })).unwrap();
       alert('Cảm ơn bạn đã đánh giá tài xế!');
+      // Clear form sau khi submit thành công
+      setReviewForm(prev => {
+        const newState = { ...prev };
+        delete newState[bookingId];
+        return newState;
+      });
     } catch (err: any) {
-      alert(err || 'Có lỗi xảy ra khi gửi đánh giá');
+      alert(err?.message || 'Có lỗi xảy ra khi gửi đánh giá');
     }
   };
 
@@ -63,25 +122,22 @@ export default function MyTrips() {
     setError(null);
     
     try {
-      const response = await fetch(`http://localhost:5000/api/bookings/phone/${phone}`);
+      const response = await fetch(getApiUrl(`/bookings/phone/${phone}`));
       const result = await response.json();
+      
+      console.log('📋 API Response:', result);
       
       if (result.success) {
         setTrips(result.data || []);
         if (result.data.length === 0) {
           setError('Không tìm thấy chuyến đi nào cho số điện thoại này');
-        } else {
-          result.data.forEach((trip: Booking) => {
-            if (trip.status === 'completed') {
-              dispatch(fetchReviewByBooking(trip._id));
-            }
-          });
         }
       } else {
         setError(result.message || 'Không thể tải danh sách chuyến đi');
         setTrips([]);
       }
     } catch (error) {
+      console.error('❌ Search error:', error);
       setError('Không thể kết nối đến server. Vui lòng thử lại sau.');
       setTrips([]);
     } finally {
@@ -90,6 +146,7 @@ export default function MyTrips() {
   };
 
   const getStatusText = (status: string): string => {
+    const normalized = normalizeStatus(status);
     const statusMap: Record<string, string> = {
       'pending': 'Chờ xác nhận',
       'confirmed': 'Đã xác nhận',
@@ -98,7 +155,20 @@ export default function MyTrips() {
       'completed': 'Hoàn thành',
       'cancelled': 'Đã hủy'
     };
-    return statusMap[status] || status;
+    return statusMap[normalized] || status;
+  };
+
+  const getStatusStyle = (status: string): string => {
+    const normalized = normalizeStatus(status);
+    const styles: Record<string, string> = {
+      'pending': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+      'confirmed': 'bg-blue-100 text-blue-700 border-blue-200',
+      'assigned': 'bg-purple-100 text-purple-700 border-purple-200',
+      'in-progress': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+      'completed': 'bg-green-100 text-green-700 border-green-200',
+      'cancelled': 'bg-red-100 text-red-700 border-red-200',
+    };
+    return styles[normalized] || 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
   const formatDate = (dateString: string): string => {
@@ -119,7 +189,6 @@ export default function MyTrips() {
     if (booking.vehicleType) {
       return booking.vehicleType.type_name;
     }
-    // Fallback based on seats
     const typeMap: Record<number, string> = {
       4: 'Xe 4 chỗ',
       7: 'Xe 7 chỗ',
@@ -129,6 +198,11 @@ export default function MyTrips() {
       45: 'Xe 45 chỗ'
     };
     return typeMap[booking.seats] || `Xe ${booking.seats} chỗ`;
+  };
+
+  const canCancel = (status: string): boolean => {
+    const normalized = normalizeStatus(status);
+    return ['pending', 'confirmed'].includes(normalized);
   };
 
   return (
@@ -214,233 +288,279 @@ export default function MyTrips() {
               ))}
             </div>
           ) : trips.length > 0 ? (
-            trips.map(trip => (
-              <div key={trip._id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group">
-                {/* Card Header */}
-                <div className="p-6 md:p-8 border-b border-gray-50 flex flex-wrap justify-between items-center gap-4 bg-gray-50/30">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
-                      <Ticket className="text-emerald-500" size={24} />
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Mã Chuyến Đi</div>
-                      <div className="font-black text-gray-900">#CB-{trip._id.slice(-6).toUpperCase()}</div>
-                    </div>
-                  </div>
-                  <StatusBadge status={trip.status} statusText={getStatusText(trip.status)} />
-                </div>
-                
-                {/* Card Body */}
-                <div className="p-8 md:p-10">
-                  <div className="flex gap-6 mb-10">
-                    <div className="flex flex-col items-center gap-2 py-1">
-                      <div className="w-4 h-4 rounded-full border-4 border-emerald-500 bg-white"></div>
-                      <div className="w-0.5 flex-1 border-l-2 border-dashed border-gray-200"></div>
-                      <div className="w-4 h-4 rounded-full border-4 border-red-500 bg-white"></div>
-                    </div>
-                    <div className="flex-1 space-y-10">
-                      <div>
-                        <div className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Điểm Đón</div>
-                        <div className="font-bold text-lg text-gray-900">{trip.pickup_location}</div>
-                        <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                          <Clock size={14} /> {formatDate(trip.trip_date)}
-                        </div>
+            trips.map(trip => {
+              const normalizedStatus = normalizeStatus(trip.status);
+              const isCompleted = normalizedStatus === 'completed';
+              const existingReview = reviewsByBooking[trip._id];
+              const hasReviewed = existingReview !== undefined && existingReview !== null;
+              const canReviewStatusData = canReviewStatus[trip._id];
+              const canActuallyReview = canReviewStatusData?.canReview === true;
+              const showReviewForm = isCompleted && !hasReviewed;
+              
+              console.log(`🎯 Trip ${trip._id}: status=${trip.status}, normalized=${normalizedStatus}, isCompleted=${isCompleted}, hasReviewed=${hasReviewed}, canActuallyReview=${canActuallyReview}, showForm=${showReviewForm}`);
+              
+              return (
+                <div key={trip._id} className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all group">
+                  {/* Card Header */}
+                  <div className="p-6 md:p-8 border-b border-gray-50 flex flex-wrap justify-between items-center gap-4 bg-gray-50/30">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
+                        <Ticket className="text-emerald-500" size={24} />
                       </div>
                       <div>
-                        <div className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Điểm Đến</div>
-                        <div className="font-bold text-lg text-gray-900">{trip.dropoff_location}</div>
+                        <div className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Mã Chuyến Đi</div>
+                        <div className="font-black text-gray-900">#CB-{trip._id.slice(-6).toUpperCase()}</div>
                       </div>
                     </div>
+                    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${getStatusStyle(trip.status)}`}>
+                      {getStatusText(trip.status)}
+                    </span>
                   </div>
-
-                  {/* Info Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-8 border-t border-gray-50">
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <div className="text-[10px] text-gray-400 uppercase font-black mb-1">Loại Xe</div>
-                      <div className="flex items-center gap-2 font-bold text-gray-700">
-                        <Car size={16} className="text-emerald-500" />
-                        {getVehicleTypeName(trip)}
+                  
+                  {/* Card Body */}
+                  <div className="p-8 md:p-10">
+                    <div className="flex gap-6 mb-10">
+                      <div className="flex flex-col items-center gap-2 py-1">
+                        <div className="w-4 h-4 rounded-full border-4 border-emerald-500 bg-white"></div>
+                        <div className="w-0.5 flex-1 border-l-2 border-dashed border-gray-200"></div>
+                        <div className="w-4 h-4 rounded-full border-4 border-red-500 bg-white"></div>
                       </div>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-2xl">
-                      <div className="text-[10px] text-gray-400 uppercase font-black mb-1">Số Khách</div>
-                      <div className="font-bold text-gray-700">{trip.passengers} Người</div>
-                    </div>
-                    <div className="bg-emerald-50 p-4 rounded-2xl col-span-2 md:col-span-1 border border-emerald-100">
-                      <div className="text-[10px] text-emerald-600/60 uppercase font-black mb-1">Tổng Cước</div>
-                      <div className="text-xl font-black text-emerald-600">
-                        {trip.price.toLocaleString('vi-VN')}đ
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Driver Info if assigned */}
-                  {trip.tripAssignment?.driver && (
-                    <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
-                          <Car size={20} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">Tài xế</div>
-                          <div className="font-bold text-blue-900">{trip.tripAssignment.driver.name}</div>
-                          <div className="text-sm text-blue-600 flex items-center gap-1">
-                            <Phone size={12} /> {trip.tripAssignment.driver.phone}
+                      <div className="flex-1 space-y-10">
+                        <div>
+                          <div className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Điểm Đón</div>
+                          <div className="font-bold text-lg text-gray-900">{trip.pickup_location}</div>
+                          <div className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                            <Clock size={14} /> {formatDate(trip.trip_date)}
                           </div>
                         </div>
-                        {trip.tripAssignment.vehicle && (
-                          <div className="text-right">
-                            <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">Biển số xe</div>
-                            <div className="font-bold text-blue-900">{trip.tripAssignment.vehicle.license_plate}</div>
-                          </div>
-                        )}
+                        <div>
+                          <div className="text-[10px] text-gray-400 uppercase font-black tracking-[0.2em] mb-1">Điểm Đến</div>
+                          <div className="font-bold text-lg text-gray-900">{trip.dropoff_location}</div>
+                        </div>
                       </div>
+                    </div>
 
-                      {/* Phân vùng đánh giá khi hoàn thành */}
-                      {trip.status === 'completed' && (
-                        <div className="mt-4 pt-4 border-t border-blue-200">
-                          {reviewsByBooking[trip._id] ? (
-                            <div className="bg-white/60 p-3 rounded-xl">
-                              <div className="text-xs font-bold text-gray-500 uppercase mb-1">Đánh giá của bạn:</div>
-                              <div className="flex gap-1 mb-2">
-                                {[1, 2, 3, 4, 5].map(star => (
-                                  <Star 
-                                    key={star} 
-                                    size={16} 
-                                    className={star <= reviewsByBooking[trip._id]!.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"} 
-                                  />
-                                ))}
-                              </div>
-                              {reviewsByBooking[trip._id]!.comment && (
-                                <p className="text-sm text-gray-700 italic">"{reviewsByBooking[trip._id]!.comment}"</p>
-                              )}
+                    {/* Info Grid */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-8 border-t border-gray-50">
+                      <div className="bg-gray-50 p-4 rounded-2xl">
+                        <div className="text-[10px] text-gray-400 uppercase font-black mb-1">Loại Xe</div>
+                        <div className="flex items-center gap-2 font-bold text-gray-700">
+                          <Car size={16} className="text-emerald-500" />
+                          {getVehicleTypeName(trip)}
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-2xl">
+                        <div className="text-[10px] text-gray-400 uppercase font-black mb-1">Số Khách</div>
+                        <div className="font-bold text-gray-700">{trip.passengers} Người</div>
+                      </div>
+                      <div className="bg-emerald-50 p-4 rounded-2xl col-span-2 md:col-span-1 border border-emerald-100">
+                        <div className="text-[10px] text-emerald-600/60 uppercase font-black mb-1">Tổng Cước</div>
+                        <div className="text-xl font-black text-emerald-600">
+                          {trip.price.toLocaleString('vi-VN')}đ
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Driver Info if assigned */}
+                    {trip.tripAssignment?.driver && (
+                      <div className="mt-6 p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                            <Car size={20} />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">Tài xế</div>
+                            <div className="font-bold text-blue-900">{trip.tripAssignment.driver.name}</div>
+                            <div className="text-sm text-blue-600 flex items-center gap-1">
+                              <Phone size={12} /> {trip.tripAssignment.driver.phone}
                             </div>
-                          ) : (
-                            <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
-                              <div className="text-sm font-bold text-gray-800 mb-2">Đánh giá tài xế</div>
-                              <div className="flex gap-2 mb-3">
-                                {[1, 2, 3, 4, 5].map(star => {
-                                  const currentRating = reviewForm[trip._id]?.rating || 0;
-                                  return (
-                                    <button 
-                                      key={star}
-                                      onClick={() => handleRatingChange(trip._id, star)}
-                                      className="transition-transform hover:scale-110 focus:outline-none"
-                                    >
-                                      <Star 
-                                        size={24} 
-                                        className={star <= currentRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-300"} 
-                                      />
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              <div className="flex gap-2">
-                                <input 
-                                  type="text" 
-                                  placeholder="Nhận xét của bạn (không bắt buộc)..." 
-                                  value={reviewForm[trip._id]?.comment || ''}
-                                  onChange={(e) => handleCommentChange(trip._id, e.target.value)}
-                                  className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
-                                />
-                                <button 
-                                  onClick={() => handleSubmitReview(trip._id)}
-                                  disabled={submitting || !(reviewForm[trip._id]?.rating > 0)}
-                                  className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors"
-                                >
-                                  {submitting ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
-                                  Gửi
-                                </button>
-                              </div>
+                          </div>
+                          {trip.tripAssignment.vehicle && (
+                            <div className="text-right">
+                              <div className="text-xs text-blue-600 font-bold uppercase tracking-wider">Biển số xe</div>
+                              <div className="font-bold text-blue-900">{trip.tripAssignment.vehicle.license_plate}</div>
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* Status Messages */}
-                  {trip.status === 'pending' && (
-                    <div className="mt-8 p-4 bg-yellow-50 rounded-2xl border border-yellow-100 flex items-center gap-3 text-yellow-800 text-sm font-medium">
-                      <AlertCircle size={18} />
-                      Chuyến đi đang chờ nhân viên xác nhận. Chúng tôi sẽ gọi cho bạn sớm nhất.
-                    </div>
-                  )}
-                  {trip.status === 'confirmed' && (
-                    <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-3 text-blue-800 text-sm font-medium">
-                      <CheckCircle2 size={18} />
-                      Đã xác nhận, bạn có thể hủy chuyến nếu muốn.
-                    </div>
-                  )}
-                  {['pending','confirmed','assigned'].includes(trip.status) && (
-                    <div className="mt-4 flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Nhập lý do hủy chuyến (bắt buộc)"
-                        className="flex-1 p-2 border rounded"
-                        value={cancelReasons[trip._id] || ''}
-                        onChange={e => setCancelReasons(prev => ({ ...prev, [trip._id]: e.target.value }))}
-                      />
-                      <button
-                        onClick={async () => {
-                          const normalizedReason = (cancelReasons[trip._id] || '').trim();
-                          if (!normalizedReason) {
-                            alert('Vui lòng nhập lý do hủy chuyến');
-                            return;
-                          }
-                          setCancelLoading(prev => ({ ...prev, [trip._id]: true }));
-                          try {
-                            const response = await fetch(`http://localhost:5000/api/bookings/${trip._id}/cancel`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ reason: normalizedReason })
-                            });
-                            const result = await response.json();
-                            if (result.success) {
-                              setTrips(prev => prev.map(b => b._id === trip._id ? { ...b, status: 'cancelled', low_occupancy_reason: normalizedReason || b.low_occupancy_reason } : b));
-                            } else {
-                              alert(result.message || 'Hủy chuyến không thành công');
+                        {/* REVIEW SECTION - Chỉ hiển thị khi chuyến đã hoàn thành */}
+                        {isCompleted && (
+                          <div className="mt-4 pt-4 border-t border-blue-200">
+                            {hasReviewed ? (
+                              // Đã có đánh giá - Hiển thị kết quả
+                              <div className="bg-white/60 p-4 rounded-xl">
+                                <div className="text-xs font-bold text-gray-500 uppercase mb-2">Đánh giá của bạn:</div>
+                                <div className="flex gap-1 mb-2">
+                                  {[1, 2, 3, 4, 5].map(star => (
+                                    <Star 
+                                      key={star} 
+                                      size={18} 
+                                      className={star <= existingReview!.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"} 
+                                    />
+                                  ))}
+                                </div>
+                                {existingReview!.comment && (
+                                  <p className="text-sm text-gray-700 italic">"{existingReview!.comment}"</p>
+                                )}
+                                <div className="text-xs text-gray-400 mt-2">
+                                  Cảm ơn bạn đã đánh giá!
+                                </div>
+                              </div>
+                            ) : canReviewStatusData === undefined ? (
+                              // Đang loading canReview status
+                              <div className="bg-white/60 p-4 rounded-xl flex items-center justify-center">
+                                <Loader size={20} className="animate-spin text-blue-500" />
+                                <span className="ml-2 text-sm text-gray-500">Đang tải thông tin đánh giá...</span>
+                              </div>
+                            ) : showReviewForm ? (
+                              // Chưa có đánh giá và có thể đánh giá - Hiển thị form
+                              <div className="bg-white p-4 rounded-xl shadow-sm border border-blue-100">
+                                <div className="text-sm font-bold text-gray-800 mb-3">Đánh giá tài xế</div>
+                                <div className="flex gap-2 mb-3">
+                                  {[1, 2, 3, 4, 5].map(star => {
+                                    const currentRating = reviewForm[trip._id]?.rating || 0;
+                                    return (
+                                      <button 
+                                        key={star}
+                                        onClick={() => handleRatingChange(trip._id, star)}
+                                        className="transition-transform hover:scale-110 focus:outline-none"
+                                        type="button"
+                                      >
+                                        <Star 
+                                          size={28} 
+                                          className={star <= currentRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300 hover:text-yellow-300"} 
+                                        />
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="text" 
+                                    placeholder="Nhận xét của bạn (không bắt buộc)..." 
+                                    value={reviewForm[trip._id]?.comment || ''}
+                                    onChange={(e) => handleCommentChange(trip._id, e.target.value)}
+                                    className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-500"
+                                  />
+                                  <button 
+                                    onClick={() => handleSubmitReview(trip._id)}
+                                    disabled={submitting || !(reviewForm[trip._id]?.rating > 0)}
+                                    className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-1 transition-colors"
+                                    type="button"
+                                  >
+                                    {submitting ? <Loader size={16} className="animate-spin" /> : <Send size={16} />}
+                                    Gửi
+                                  </button>
+                                </div>
+                              </div>
+                            ) : canReviewStatusData?.hasReviewed === false && canReviewStatusData?.canReview === false ? (
+                              // Không thể đánh giá - Hiển thị lý do
+                              <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                <div className="flex items-center gap-2 text-gray-500">
+                                  <AlertCircle size={16} />
+                                  <span className="text-sm">
+                                    {!canReviewStatusData?.hasDriver 
+                                      ? "Không tìm thấy thông tin tài xế cho chuyến này. Vui lòng liên hệ hỗ trợ."
+                                      : !canReviewStatusData?.isCompleted
+                                      ? "Chỉ có thể đánh giá sau khi chuyến đi hoàn thành."
+                                      : "Không thể đánh giá chuyến đi này vào lúc này."}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Status Messages */}
+                    {normalizedStatus === 'pending' && (
+                      <div className="mt-8 p-4 bg-yellow-50 rounded-2xl border border-yellow-100 flex items-center gap-3 text-yellow-800 text-sm font-medium">
+                        <AlertCircle size={18} />
+                        Chuyến đi đang chờ nhân viên xác nhận. Chúng tôi sẽ gọi cho bạn sớm nhất.
+                      </div>
+                    )}
+                    {normalizedStatus === 'confirmed' && (
+                      <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-3 text-blue-800 text-sm font-medium">
+                        <CheckCircle2 size={18} />
+                        Đã xác nhận, bạn có thể hủy chuyến nếu muốn.
+                      </div>
+                    )}
+                    {normalizedStatus === 'assigned' && (
+                      <div className="mt-8 p-4 bg-purple-50 rounded-2xl border border-purple-100 flex items-center gap-3 text-purple-800 text-sm font-medium">
+                        <CheckCircle2 size={18} />
+                        Tài xế đã được phân công. Vui lòng chuẩn bị hành lý.
+                      </div>
+                    )}
+                    {normalizedStatus === 'in-progress' && (
+                      <div className="mt-8 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3 text-emerald-800 text-sm font-medium">
+                        <Car size={18} />
+                        Tài xế đang trên đường đến đón bạn.
+                      </div>
+                    )}
+                    {normalizedStatus === 'completed' && (
+                      <div className="mt-8 p-4 bg-green-50 rounded-2xl border border-green-100 flex items-center gap-3 text-green-800 text-sm font-medium">
+                        <CheckCircle2 size={18} />
+                        Chuyến đi đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ!
+                      </div>
+                    )}
+                    {normalizedStatus === 'cancelled' && (
+                      <div className="mt-8 p-4 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3 text-red-800 text-sm font-medium">
+                        <AlertCircle size={18} />
+                        {trip.low_occupancy_reason || 'Chuyến đi đã bị hủy'}
+                      </div>
+                    )}
+
+                    {/* Cancel Button - Chỉ hiển thị khi có thể hủy */}
+                    {canCancel(trip.status) && (
+                      <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nhập lý do hủy chuyến (bắt buộc)"
+                          className="flex-1 p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none transition-all"
+                          value={cancelReasons[trip._id] || ''}
+                          onChange={e => setCancelReasons(prev => ({ ...prev, [trip._id]: e.target.value }))}
+                        />
+                        <button
+                          onClick={async () => {
+                            const normalizedReason = (cancelReasons[trip._id] || '').trim();
+                            if (!normalizedReason) {
+                              alert('Vui lòng nhập lý do hủy chuyến');
+                              return;
                             }
-                          } catch (e) {
-                            alert('Lỗi khi hủy chuyến');
-                          } finally {
-                            setCancelLoading(prev => ({ ...prev, [trip._id]: false }));
-                          }
-                        }}
-                        disabled={cancelLoading[trip._id] || !(cancelReasons[trip._id] || '').trim()}
-                        className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white px-3 py-2 rounded"
-                      >
-                        {cancelLoading[trip._id] ? 'Đang hủy...' : 'Hủy chuyến'}
-                      </button>
-                    </div>
-                  )}
-                  {trip.status === 'assigned' && (
-                    <div className="mt-8 p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-3 text-blue-800 text-sm font-medium">
-                      <CheckCircle2 size={18} />
-                      Tài xế đã được phân công. Vui lòng chuẩn bị hành lý.
-                    </div>
-                  )}
-                  {trip.status === 'in-progress' && (
-                    <div className="mt-8 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3 text-emerald-800 text-sm font-medium">
-                      <Car size={18} />
-                      Tài xế đang trên đường đến đón bạn.
-                    </div>
-                  )}
-                  {trip.status === 'completed' && (
-                    <div className="mt-8 p-4 bg-green-50 rounded-2xl border border-green-100 flex items-center gap-3 text-green-800 text-sm font-medium">
-                      <CheckCircle2 size={18} />
-                      Chuyến đi đã hoàn thành. Cảm ơn bạn đã sử dụng dịch vụ!
-                    </div>
-                  )}
-                  {trip.status === 'cancelled' && (
-                    <div className="mt-8 p-4 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3 text-red-800 text-sm font-medium">
-                      <AlertCircle size={18} />
-                      {trip.low_occupancy_reason || 'Chuyến đi đã bị hủy'}
-                    </div>
-                  )}
+                            setCancelLoading(prev => ({ ...prev, [trip._id]: true }));
+                            try {
+                              const response = await fetch(getApiUrl(`/bookings/${trip._id}/cancel`), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ reason: normalizedReason })
+                              });
+                              const result = await response.json();
+                              if (result.success) {
+                                setTrips(prev => prev.map(b => 
+                                  b._id === trip._id ? { ...b, status: 'cancelled', low_occupancy_reason: normalizedReason } : b
+                                ));
+                                alert('Hủy chuyến thành công');
+                              } else {
+                                alert(result.message || 'Hủy chuyến không thành công');
+                              }
+                            } catch (e) {
+                              alert('Lỗi khi hủy chuyến');
+                            } finally {
+                              setCancelLoading(prev => ({ ...prev, [trip._id]: false }));
+                            }
+                          }}
+                          disabled={cancelLoading[trip._id] || !(cancelReasons[trip._id] || '').trim()}
+                          className="bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white px-6 py-3 rounded-xl text-sm font-medium transition-colors whitespace-nowrap"
+                        >
+                          {cancelLoading[trip._id] ? 'Đang hủy...' : 'Hủy chuyến'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-gray-200">
               <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -456,22 +576,5 @@ export default function MyTrips() {
         </div>
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ status, statusText }: { status: string; statusText: string }) {
-  const styles: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    confirmed: 'bg-blue-100 text-blue-700 border-blue-200',
-    assigned: 'bg-purple-100 text-purple-700 border-purple-200',
-    'in-progress': 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    completed: 'bg-gray-100 text-gray-700 border-gray-200',
-    cancelled: 'bg-red-100 text-red-700 border-red-200',
-  };
-  
-  return (
-    <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${styles[status] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-      {statusText}
-    </span>
   );
 }
